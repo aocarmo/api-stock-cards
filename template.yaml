@@ -19,10 +19,11 @@ Globals:
     Environment:
       Variables:
         DYNAMODB_TABLE: !Ref FilesTable
-        MYP_USERNAME: "alex.carmo91@gmail.com"
-        MYP_PASSWORD: "sua-senha"
+        MYP_USERNAME: "mariavitoria.argolo@gmail.com"
+        MYP_PASSWORD: "Mar0809."
         CHUNK_SIZE: "50"
         S3_BUCKET: !Ref CsvBucket
+        AWS_DEFAULT_REGION: !Ref AWS::Region
 
 Resources:
   # API Gateway
