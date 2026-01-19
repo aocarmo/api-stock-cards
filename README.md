@@ -1,150 +1,41 @@
-# MYP Cards - Automação Lambda
+# MYP Cards - API de Automação de Estoque
 
-## Arquitetura
+API para gerenciamento automatizado de cartas no MYP Cards com processamento em massa via CSV.
 
-3 Lambdas independentes para automatizar cadastro/atualização de cartas no MYP Cards.
+## 🚀 Funcionalidades
 
-### Lambda 1: Login
-- **Função**: Autentica e salva sessão no Parameter Store
-- **Trigger**: Manual ou EventBridge (renovar sessão a cada X horas)
-- **Timeout**: 30s
-- **Memory**: 256MB
+### 1. Recadastrar Cartas
+Exclui e recadastra cartas com os mesmos dados (útil para atualizar informações do sistema).
 
-### Lambda 2: Recadastrar Cartas
-- **Função**: Descadastra e recadastra cartas com mesmos dados
-- **Input**: Lista de cartas com ID
-- **Timeout**: 5min (300s)
-- **Memory**: 512MB
+### 2. Atualizar Cartas
+Atualiza preços e quantidades de cartas específicas.
 
-### Lambda 3: Atualizar CSV
-- **Função**: Lê CSV do S3 e atualiza estoque/preços
-- **Input**: Bucket e key do CSV
-- **Timeout**: 15min (900s)
-- **Memory**: 512MB
+### 3. Upload CSV em Massa
+- Upload de arquivo CSV para S3
+- Processamento automático em chunks de 50 linhas
+- Até 50 lambdas processando simultaneamente
+- Apenas 1 arquivo por vez
 
-## Deploy
+### 4. Consultar Status
+Acompanha progresso do processamento com:
+- Status (PENDING, PROCESSING, COMPLETED, FAILED)
+- Progresso percentual
+- Linhas com erro
 
-```bash
-# Criar layer com dependências
-pip install -r requirements.txt -t python/
-zip -r layer.zip python/
+## 🏗️ Arquitetura
 
-# Upload layer
-aws lambda publish-layer-version \
-  --layer-name myp-cards-deps \
-  --zip-file fileb://layer.zip \
-  --compatible-runtimes python3.11
+```
+API Gateway → Lambda Proxy (FastAPI)
+                ↓
+            Endpoints
 
-# Criar Lambdas
-aws lambda create-function \
-  --function-name myp-login \
-  --runtime python3.11 \
-  --handler lambda_login.lambda_handler \
-  --zip-file fileb://lambda_login.zip \
-  --role arn:aws:iam::ACCOUNT:role/lambda-role \
-  --layers arn:aws:lambda:REGION:ACCOUNT:layer:myp-cards-deps:1 \
-  --timeout 30 \
-  --memory-size 256
+S3 Upload → Lambda Producer → SQS → 50x Lambda Consumer
+                ↓                           ↓
+            DynamoDB ← ← ← ← ← ← ← ← ← ← ← ←
 ```
 
-## Permissões IAM
+## 📋 Formato CSV
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ssm:GetParameter",
-        "ssm:PutParameter"
-      ],
-      "Resource": "arn:aws:ssm:*:*:parameter/myp/*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject"
-      ],
-      "Resource": "arn:aws:s3:::SEU-BUCKET/*"
-    }
-  ]
-}
-```
-
-## Configuração
-
-Criar parâmetros no Parameter Store:
-```bash
-aws ssm put-parameter --name /myp/username --value "seu-email" --type SecureString
-aws ssm put-parameter --name /myp/password --value "sua-senha" --type SecureString
-```
-
-## Uso
-
-### 1. Login
-```bash
-aws lambda invoke --function-name myp-login output.json
-```
-
-### 2. Recadastrar
-```bash
-aws lambda invoke --function-name myp-recadastrar \
-  --payload '{"cartas":[{"id":123,"nome":"Pikachu","preco":10.50,"quantidade":2}]}' \
-  output.json
-```
-
-### 3. Atualizar CSV
-```bash
-# Upload CSV para S3
-aws s3 cp cartas.csv s3://seu-bucket/cartas.csv
-
-# Invocar Lambda
-aws lambda invoke --function-name myp-atualizar-csv \
-  --payload '{"bucket":"seu-bucket","key":"cartas.csv"}' \
-  output.json
-```
-
-## Formato CSV
-
-```csv
-numero,preco,quantidade
-153/131,599.00,1
-248/182,399.00,1
-013/094,24.90,2
-```
-
-**Campos:**
-- `numero`: Número da carta (ex: 153/131)
-- `preco`: Novo preço (use 0 para manter o atual)
-- `quantidade`: Quantidade a ADICIONAR (não substituir)
-
-## Próximos Passos
-
-1. **Testar URLs reais**: Preciso que você me passe as URLs corretas de:
-   - Busca de cartas
-   - Cadastro de carta
-   - Atualização de carta
-   - Exclusão de carta
-
-2. **Ajustar seletores HTML**: Preciso ver o HTML real para ajustar os seletores BeautifulSoup
-
-3. **Adicionar retry logic**: Para lidar com timeouts/erros temporários
-
-4. **Logs estruturados**: CloudWatch Logs com métricas
-
-
-# Formato CSV para Cadastro/Atualização em Massa
-
-## Colunas obrigatórias:
-- numero: Número da carta (ex: 161/131)
-- colecao: Sigla da coleção (ex: PRE, SVI, PAL)
-- tipo: Tipo da carta (normal, foil, reverse-foil, etc)
-- idioma: Idioma (portugues, ingles, espanhol, etc)
-- preco: Preço (ex: 2500.00) - será substituído
-- quantidade: Quantidade (ex: 5) - será incrementada
-
-## Exemplo:
 ```csv
 numero,colecao,tipo,idioma,preco,quantidade
 161/131,PRE,normal,portugues,2500.00,5
@@ -152,6 +43,164 @@ numero,colecao,tipo,idioma,preco,quantidade
 248/182,PAL,reverse-foil,portugues,399.00,1
 ```
 
-## Comportamento:
-- Se a carta existir: atualiza preço (substitui) e quantidade (incrementa)
-- Se não existir: cria nova carta com os dados fornecidos
+**Campos:**
+- `numero`: Número da carta (ex: 161/131)
+- `colecao`: Sigla da coleção (ex: PRE, SVI, PAL)
+- `tipo`: normal, foil, reverse-foil, etc
+- `idioma`: portugues, ingles, espanhol, etc
+- `preco`: Será **substituído**
+- `quantidade`: Será **incrementada**
+
+## 🛠️ Tecnologias
+
+- **Backend**: FastAPI + Python 3.11
+- **Scraping**: Cloudscraper + BeautifulSoup4
+- **AWS**: Lambda, API Gateway, S3, SQS, DynamoDB
+- **IaC**: AWS SAM
+- **CI/CD**: GitHub Actions
+
+## 🌍 Ambientes
+
+- `develop` → myp-cards-dev
+- `staging` → myp-cards-staging
+- `main` → myp-cards-prod
+
+## 🚀 Deploy
+
+Deploy automático via GitHub Actions ao fazer push nas branches.
+
+### Configuração Inicial
+
+1. Configure secrets no GitHub:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+
+2. Push para a branch desejada:
+```bash
+git push origin develop
+```
+
+### Deploy Manual (opcional)
+
+```bash
+sam build
+sam deploy --config-env develop
+```
+
+## 💻 Desenvolvimento Local
+
+```bash
+# Instalar dependências
+pip install -r requirements.txt
+
+# Configurar .env
+cp .env.example .env
+# Edite o .env com suas credenciais
+
+# Rodar API local
+python3 main.py
+```
+
+API disponível em: http://localhost:8000
+
+Swagger: http://localhost:8000/docs
+
+## 📡 Endpoints
+
+### POST /api/v1/recadastrar
+Recadastra cartas (exclui e cria novamente).
+
+```bash
+curl -X POST http://localhost:8000/api/v1/recadastrar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cartas": [
+      {
+        "numero": "077/131",
+        "colecao": "SVI",
+        "tipo": "normal",
+        "idioma": "ingles"
+      }
+    ]
+  }'
+```
+
+### POST /api/v1/atualizar
+Atualiza preços e quantidades.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/atualizar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cartas": [
+      {
+        "numero": "077/131",
+        "colecao": "SVI",
+        "tipo": "normal",
+        "idioma": "ingles",
+        "preco": "150.00",
+        "quantidade": "5"
+      }
+    ]
+  }'
+```
+
+### POST /api/v1/upload-csv
+Upload de CSV para processamento em massa.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/upload-csv \
+  -F "file=@exemplo.csv"
+```
+
+### GET /api/v1/status/{file_id}
+Consulta status do processamento.
+
+```bash
+curl http://localhost:8000/api/v1/status/file_20260118_200500
+```
+
+## ⚙️ Configurações
+
+- **Chunk Size**: 50 linhas por chunk
+- **Concorrência**: 50 lambdas simultâneas
+- **Timeout Lambda**: 15 minutos
+- **Delay entre operações**: 2 segundos (evitar bloqueio)
+
+## 📊 Monitoramento
+
+```bash
+# Logs da API
+aws logs tail /aws/lambda/myp-api --follow
+
+# Logs do Producer
+aws logs tail /aws/lambda/myp-producer --follow
+
+# Logs do Consumer
+aws logs tail /aws/lambda/myp-consumer --follow
+
+# Status dos arquivos
+aws dynamodb scan --table-name myp-cards-files
+```
+
+## 🔒 Segurança
+
+- Credenciais hardcoded no template (projeto pessoal)
+- TODO: Migrar para AWS Secrets Manager
+
+## 📝 TODO
+
+- [ ] Implementar criação automática de cartas não encontradas
+- [ ] Adicionar retry logic com exponential backoff
+- [ ] Migrar credenciais para Secrets Manager
+- [ ] Adicionar testes unitários
+- [ ] Implementar logs estruturados
+- [ ] Dashboard de monitoramento
+
+## 📄 Licença
+
+Projeto pessoal - Uso privado
+
+## 👤 Autor
+
+Alex Carmo - alex.carmo91@gmail.com
