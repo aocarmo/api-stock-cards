@@ -71,6 +71,8 @@ Resources:
   # SQS Queue
   ProcessingQueue:
     Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       QueueName: !Sub queue-${ProjectName}-processing-${Environment}
       VisibilityTimeout: 900
@@ -80,6 +82,8 @@ Resources:
   # DLQ
   DeadLetterQueue:
     Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       QueueName: !Sub queue-${ProjectName}-dlq-${Environment}
       MessageRetentionPeriod: 1209600
