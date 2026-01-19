@@ -30,7 +30,7 @@ class AtualizarMassaUseCase:
             quantidade = carta.get('quantidade')
             
             try:
-                # Buscar carta
+                # Buscar carta na pasta (com filtro de tipo)
                 card_data = self.service.search_card(numero, colecao, tipo, idioma)
                 
                 if card_data:
@@ -67,13 +67,13 @@ class AtualizarMassaUseCase:
                             'status': 'erro_atualizar'
                         })
                 else:
-                    # Carta não existe - buscar idproduto e criar
-                    print(f"⚠️ Carta não encontrada na pasta: {numero} ({colecao}) - Buscando no site...")
+                    # Carta não existe na pasta - buscar produto no site (SEM filtro de tipo)
+                    print(f"⚠️ Carta não encontrada na pasta: {numero} ({colecao}) ({tipo}) - Buscando produto no site...")
                     
                     idproduto = self.service.search_product_id(numero, colecao)
                     
                     if idproduto:
-                        # Criar carta
+                        # Criar carta com o tipo especificado no CSV
                         card_data = {
                             'idproduto': idproduto,
                             'numero': numero,
@@ -86,7 +86,7 @@ class AtualizarMassaUseCase:
                         }
                         
                         if self.service.create_card(card_data):
-                            print(f"✅ Carta criada: {numero} ({colecao}) | Preço: {preco} | Qtd: {quantidade}")
+                            print(f"✅ Carta criada: {numero} ({colecao}) ({tipo}) | Preço: {preco} | Qtd: {quantidade}")
                             resultados.append({
                                 'numero': numero,
                                 'colecao': colecao,
