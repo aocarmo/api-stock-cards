@@ -39,25 +39,20 @@ Resources:
   # S3 Bucket para CSVs
   CsvBucket:
     Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
-
-  # S3 Notification Configuration
-  S3BucketNotification:
-    Type: AWS::S3::BucketNotification
     DependsOn: ProducerPermission
     Properties:
-      Bucket: !Ref CsvBucket
-      LambdaConfigurations:
-        - Event: s3:ObjectCreated:*
-          Filter:
-            S3Key:
-              Rules:
-                - Name: prefix
-                  Value: csv-uploads/
-                - Name: suffix
-                  Value: .csv
-          Function: !GetAtt ProducerFunction.Arn
+      BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: csv-uploads/
+                  - Name: suffix
+                    Value: .csv
+            Function: !GetAtt ProducerFunction.Arn
 
   # SQS Queue
   ProcessingQueue:
