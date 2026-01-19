@@ -2,6 +2,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: MYP Cards - Atualização em Massa com SQS
 
+Parameters:
+  Environment:
+    Type: String
+    Description: 'Deployment environment name (dev, staging, prod)'
+  ProjectName:
+    Type: String
+    Default: 'myp-cards'
+    Description: 'Project name for resource naming'
+
 Globals:
   Function:
     Timeout: 900
@@ -20,7 +29,7 @@ Resources:
   ApiGateway:
     Type: AWS::Serverless::Api
     Properties:
-      StageName: prod
+      StageName: !Ref Environment
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization'"
@@ -30,7 +39,7 @@ Resources:
   CsvBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub myp-cards-csv-${AWS::AccountId}
+      BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
       NotificationConfiguration:
         LambdaConfigurations:
           - Event: s3:ObjectCreated:*
@@ -47,7 +56,7 @@ Resources:
   ProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: myp-cards-processing-queue
+      QueueName: !Sub queue-${ProjectName}-processing-${Environment}
       VisibilityTimeout: 900
       MessageRetentionPeriod: 1209600
       ReceiveMessageWaitTimeSeconds: 20
@@ -56,14 +65,14 @@ Resources:
   DeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: myp-cards-dlq
+      QueueName: !Sub queue-${ProjectName}-dlq-${Environment}
       MessageRetentionPeriod: 1209600
 
   # DynamoDB
   FilesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: myp-cards-files
+      TableName: !Sub ${ProjectName}-files-${Environment}
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: file_id
@@ -76,7 +85,7 @@ Resources:
   DependenciesLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: myp-cards-deps
+      LayerName: !Sub ${ProjectName}-deps-${Environment}
       Description: Dependências Python
       ContentUri: ./layer/
       CompatibleRuntimes:
@@ -88,7 +97,7 @@ Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: myp-api
+      FunctionName: !Sub ${ProjectName}-api-${Environment}
       CodeUri: ./
       Handler: lambdas.api_handler.handler
       Timeout: 30
@@ -118,7 +127,7 @@ Resources:
   ProducerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: myp-producer
+      FunctionName: !Sub ${ProjectName}-producer-${Environment}
       CodeUri: lambdas/
       Handler: producer.lambda_handler
       Timeout: 300
@@ -146,7 +155,7 @@ Resources:
   ConsumerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: myp-consumer
+      FunctionName: !Sub ${ProjectName}-consumer-${Environment}
       CodeUri: ./
       Handler: lambdas.consumer.lambda_handler
       Timeout: 900
@@ -171,7 +180,7 @@ Resources:
 Outputs:
   ApiUrl:
     Description: URL da API
-    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
   
   CsvBucketName:
     Description: Nome do bucket S3
