@@ -91,8 +91,7 @@ Resources:
       ContentUri: ./layer/
       CompatibleRuntimes:
         - python3.11
-    Metadata:
-      BuildMethod: python3.11
+      RetentionPolicy: Delete
 
   # Lambda: API Proxy (todos os endpoints)
   ApiFunction:
