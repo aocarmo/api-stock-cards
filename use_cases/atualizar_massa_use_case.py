@@ -35,6 +35,8 @@ class AtualizarMassaUseCase:
                 
                 if card_data:
                     # Carta existe - atualizar
+                    print(f"DEBUG - Carta encontrada: {numero} ({colecao}) - Atualizando...")
+                    
                     # Incrementar quantidade
                     qtd_atual = int(card_data.get('quantidade', 0))
                     qtd_nova = qtd_atual + int(quantidade) if quantidade else qtd_atual
@@ -43,6 +45,7 @@ class AtualizarMassaUseCase:
                     preco_novo = preco if preco else card_data.get('preco')
                     
                     if self.service.update_card(card_data['id_estoque'], preco_novo, str(qtd_nova)):
+                        print(f"✅ Carta atualizada: {numero} | Preço: {card_data.get('preco')} → {preco_novo} | Qtd: {qtd_atual} → {qtd_nova}")
                         resultados.append({
                             'numero': numero,
                             'colecao': colecao,
@@ -54,8 +57,8 @@ class AtualizarMassaUseCase:
                             'quantidade_anterior': qtd_atual,
                             'quantidade_nova': qtd_nova
                         })
-                        time.sleep(2)
                     else:
+                        print(f"❌ Erro ao atualizar: {numero}")
                         resultados.append({
                             'numero': numero,
                             'colecao': colecao,
@@ -64,15 +67,14 @@ class AtualizarMassaUseCase:
                             'status': 'erro_atualizar'
                         })
                 else:
-                    # Carta não existe - criar
-                    # Precisa buscar idproduto primeiro
-                    # TODO: implementar busca de idproduto por número+coleção
+                    # Carta não existe - não pode criar sem idproduto
+                    print(f"⚠️ Carta não encontrada: {numero} ({colecao}) - Não é possível criar automaticamente")
                     resultados.append({
                         'numero': numero,
                         'colecao': colecao,
                         'tipo': tipo,
                         'idioma': idioma,
-                        'status': 'nao_encontrada_para_criar'
+                        'status': 'nao_encontrada'
                     })
                     
             except Exception as e:
