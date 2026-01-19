@@ -10,6 +10,12 @@ Parameters:
     Type: String
     Default: 'myp-cards'
     Description: 'Project name for resource naming'
+  ProcessingQueueUrl:
+    Type: String
+    Description: 'URL da fila SQS de processamento'
+  ProcessingQueueArn:
+    Type: String
+    Description: 'ARN da fila SQS de processamento'
 
 Globals:
   Function:
@@ -67,26 +73,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
-
-  # SQS Queue
-  ProcessingQueue:
-    Type: AWS::SQS::Queue
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      QueueName: !Sub queue-${ProjectName}-processing-${Environment}
-      VisibilityTimeout: 900
-      MessageRetentionPeriod: 1209600
-      ReceiveMessageWaitTimeSeconds: 20
-
-  # DLQ
-  DeadLetterQueue:
-    Type: AWS::SQS::Queue
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      QueueName: !Sub queue-${ProjectName}-dlq-${Environment}
-      MessageRetentionPeriod: 1209600
 
   # DynamoDB
   FilesTable:
@@ -150,7 +136,7 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          QUEUE_URL: !Ref ProcessingQueue
+          QUEUE_URL: !Ref ProcessingQueueUrl
 
   ProducerPermission:
     Type: AWS::Lambda::Permission
@@ -176,7 +162,7 @@ Resources:
         SQSEvent:
           Type: SQS
           Properties:
-            Queue: !GetAtt ProcessingQueue.Arn
+            Queue: !Ref ProcessingQueueArn
             Enabled: true
             BatchSize: 1
             ScalingConfig:
@@ -193,7 +179,7 @@ Outputs:
   
   QueueUrl:
     Description: URL da fila SQS
-    Value: !Ref ProcessingQueue
+    Value: !Ref ProcessingQueueUrl
   
   FilesTableName:
     Description: Nome da tabela DynamoDB
