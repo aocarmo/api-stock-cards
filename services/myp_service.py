@@ -120,67 +120,39 @@ class MypService:
             return None
     
     def search_card(self, numero, colecao, tipo="", idioma=""):
-        """Busca carta na pasta com filtros de coleção, tipo e idioma"""
-        resp = self.scraper.get('https://mypcards.com/aocarmo/pokemon', params={
-            'PastaSearch[query]': numero
+        """Busca carta na pasta usando API"""
+        resp = self.scraper.get('https://mypcards.com/produto/search', params={
+            'marca': 'pokemon',
+            'idusuario': '109299',  # ID do usuário logado
+            'term': numero
         })
-        soup = BeautifulSoup(resp.text, 'html.parser')
         
-        cards = soup.select('.stream-item .card')
-        
-        print(f"DEBUG - Buscando: {numero} | Coleção: {colecao} | Tipo: {tipo} | Idioma: {idioma}")
-        print(f"DEBUG - Cartas encontradas: {len(cards)}")
-        
-        for card in cards:
-            # Verificar coleção
-            colecao_elemento = card.select_one('.card-edicao')
-            colecao_atual = colecao_elemento.get_text(strip=True) if colecao_elemento else ""
+        try:
+            produtos = resp.json()
+            print(f"DEBUG - Buscando: {numero} | Coleção: {colecao} | Tipo: {tipo} | Idioma: {idioma}")
+            print(f"DEBUG - Cartas encontradas: {len(produtos)}")
             
-            # Verificar tipo
-            tipo_elemento = card.select_one('.estoque-lista-nomeenfoil')
-            tipo_atual = tipo_elemento.get_text(strip=True) if tipo_elemento else ""
-            
-            # Verificar idioma pelo title da bandeira
-            flag_element = card.select_one('.flag-icon')
-            idioma_atual = flag_element.get('title', '') if flag_element else ""
-            
-            print(f"DEBUG - Carta: colecao='{colecao_atual}' | tipo_dom='{tipo_atual}' | idioma='{idioma_atual}'")
-            
-            # Match coleção
-            colecao_match = colecao.upper() == colecao_atual.upper()
-            
-            # Lógica de match para tipo (mapear nome_api para nome_dom)
-            if tipo == "normal" or tipo == "":
-                tipo_match = not tipo_atual  # Normal = sem tipo
-            else:
-                tipo_dom = TipoCarta.get_dom_name_by_api_name(tipo)
-                tipo_match = tipo_dom and tipo_dom.lower() in tipo_atual.lower()
-            
-            # Lógica de match para idioma (mapear nome_api para nome_dom)
-            if idioma:
-                idioma_dom = IdiomaCarta.get_dom_name_by_api_name(idioma)
-                idioma_match = idioma_dom and idioma_dom.lower() in idioma_atual.lower()
-            else:
-                idioma_match = True
-            
-            print(f"DEBUG - Match: colecao={colecao_match} | tipo={tipo_match} | idioma={idioma_match}")
-            
-            if colecao_match and tipo_match and idioma_match:
-                link = card.select_one('a.bt-offers')
-                if link:
-                    id_estoque = link['href'].split('/')[-1]
-                    
-                    # Coletar dados completos da carta
-                    card_data = self._get_card_details(id_estoque)
-                    card_data.update({
-                        'id_estoque': id_estoque,
+            for produto in produtos:
+                nome = produto.get('nomeenproduto', '')
+                # Extrair coleção do nome (formato: "Nome COLECAO numero/total")
+                if f" {colecao.upper()} " in nome.upper():
+                    # TODO: Implementar filtros de tipo e idioma se necessário
+                    # Por enquanto retorna a primeira que bater a coleção
+                    print(f"DEBUG - Carta encontrada na pasta: {nome}")
+                    return {
+                        'id_estoque': produto['idproduto'],  # Usar idproduto como id_estoque temporário
                         'numero': numero,
                         'colecao': colecao,
-                        'tipo': tipo,
-                        'idioma_nome': idioma
-                    })
-                    return card_data
-        return None
+                        'preco': '0.00',  # Valor padrão
+                        'quantidade': '1'  # Valor padrão
+                    }
+            
+            print(f"DEBUG - Carta não encontrada na pasta")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Erro ao buscar carta na pasta: {e}")
+            return None
     
     def delete_card(self, id_estoque):
         """Exclui carta usando endpoint direto"""
