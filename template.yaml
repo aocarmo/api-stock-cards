@@ -23,7 +23,6 @@ Globals:
         MYP_PASSWORD: "Mar0809."
         CHUNK_SIZE: "50"
         S3_BUCKET: !Ref CsvBucket
-        AWS_DEFAULT_REGION: !Ref AWS::Region
 
 Resources:
   # IAM Role padrão para Lambdas
