@@ -1,10 +1,8 @@
-name: Deploy to AWS
+name: Deploy to Prod
 
 on:
   push:
     branches:
-      - develop
-      - staging
       - main
 
 jobs:
@@ -30,17 +28,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
       
-      - name: Set environment
-        id: set-env
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "ENV=prod" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
-            echo "ENV=staging" >> $GITHUB_OUTPUT
-          else
-            echo "ENV=dev" >> $GITHUB_OUTPUT
-          fi
-      
       - name: Create layer
         run: |
           mkdir -p layer/python
@@ -52,7 +39,6 @@ jobs:
       - name: SAM Deploy
         run: |
           sam deploy \
-            --config-env ${{ steps.set-env.outputs.ENV }} \
+            --config-env prod \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
-
