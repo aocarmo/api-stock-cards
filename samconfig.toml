@@ -9,7 +9,7 @@ capabilities = "CAPABILITY_IAM"
 parameter_overrides = "Environment=dev"
 
 [dev.deploy.parameters]
-stack_name = "myp-cards-dev"
+stack_name = "myp-cards-dev-v2"
 s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
