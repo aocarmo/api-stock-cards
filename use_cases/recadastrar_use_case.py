@@ -57,9 +57,14 @@ class RecadastrarUseCase:
                 resultados.append({'numero': numero, 'colecao': colecao, 'tipo': tipo, 'idioma': idioma, 'status': 'erro', 'erro': str(e)})
         
         # Fase 2: Recadastrar
+        print(f"DEBUG - Iniciando recadastro de {len(cartas_pendentes)} cartas")
+        
         for carta_pendente in cartas_pendentes:
             try:
+                print(f"DEBUG - Recadastrando: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente['tipo']}) ({carta_pendente.get('idioma_nome', '')})")
+                
                 if self.service.create_card(carta_pendente):
+                    print(f"Carta {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente['tipo']}) ({carta_pendente.get('idioma_nome', '')}) recadastrada com sucesso")
                     resultados.append({
                         'numero': carta_pendente['numero'],
                         'colecao': carta_pendente['colecao'],
@@ -68,6 +73,7 @@ class RecadastrarUseCase:
                         'status': 'ok'
                     })
                 else:
+                    print(f"ERRO - Falha ao recadastrar: {carta_pendente['numero']}")
                     resultados.append({
                         'numero': carta_pendente['numero'],
                         'colecao': carta_pendente['colecao'],
@@ -76,6 +82,7 @@ class RecadastrarUseCase:
                         'status': 'erro_cadastrar'
                     })
             except Exception as e:
+                print(f"ERRO - Exception ao recadastrar {carta_pendente['numero']}: {str(e)}")
                 resultados.append({
                     'numero': carta_pendente['numero'],
                     'colecao': carta_pendente['colecao'],
