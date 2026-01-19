@@ -93,7 +93,7 @@ class MypService:
         return None
     
     def search_product_id(self, numero, colecao):
-        """Busca idproduto no site todo quando carta não está na pasta"""
+        """Busca idproduto no site todo quando carta não está na pasta (ignora tipo)"""
         resp = self.scraper.get('https://mypcards.com/todos', params={
             'ProdutoSearch[query]': numero
         })
@@ -109,6 +109,8 @@ class MypService:
             # Verificar coleção
             colecao_elemento = card.select_one('.card-edicao')
             colecao_atual = colecao_elemento.get_text(strip=True) if colecao_elemento else ""
+            
+            print(f"DEBUG - Produto: colecao='{colecao_atual}'")
             
             if colecao.upper() == colecao_atual.upper():
                 # Pegar idproduto do link "Adicionar à pasta"
