@@ -6,9 +6,11 @@ import os
 import cloudscraper
 from bs4 import BeautifulSoup
 from enums.tipos_carta import TipoCarta, IdiomaCarta
-from dotenv import load_dotenv
 
-load_dotenv()
+# Carregar .env apenas em ambiente local
+if os.path.exists('.env'):
+    from dotenv import load_dotenv
+    load_dotenv()
 
 class MypService:
     def __init__(self):
