@@ -28,6 +28,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
       
+      - name: Create S3 bucket for deployment
+        run: |
+          aws s3 mb s3://myp-cards-deploy --region us-east-1 || echo "Bucket already exists"
+      
       - name: Create layer
         run: |
           mkdir -p layer/python

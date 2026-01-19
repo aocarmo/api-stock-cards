@@ -18,11 +18,4 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["ProducerFunction"]
 
-[layer_build_definitions.311ec2a5-4947-4b9b-b128-92e15069872f]
-layer_name = "DependenciesLayer"
-codeuri = "/Users/alex/Documents/projetos/pessoais/update-myp/layer"
-build_method = "python3.11"
-compatible_runtimes = ["python3.11"]
-architecture = "x86_64"
-manifest_hash = ""
-layer = "DependenciesLayer"
+[layer_build_definitions]
