@@ -56,7 +56,7 @@ jobs:
         run: |
           sam deploy \
             --stack-name ${{ steps.set-env.outputs.STACK_NAME }} \
-            --s3-bucket myp-cards-deploy \
+            --resolve-s3 \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
