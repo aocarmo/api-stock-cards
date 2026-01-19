@@ -92,6 +92,36 @@ class MypService:
         
         return None
     
+    def search_product_id(self, numero, colecao):
+        """Busca idproduto no site todo quando carta não está na pasta"""
+        resp = self.scraper.get('https://mypcards.com/todos', params={
+            'ProdutoSearch[query]': numero
+        })
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # Buscar cards que correspondem à coleção
+        cards = soup.select('.card')
+        
+        print(f"DEBUG - Buscando produto: {numero} | Coleção: {colecao}")
+        print(f"DEBUG - Produtos encontrados: {len(cards)}")
+        
+        for card in cards:
+            # Verificar coleção
+            colecao_elemento = card.select_one('.card-edicao')
+            colecao_atual = colecao_elemento.get_text(strip=True) if colecao_elemento else ""
+            
+            if colecao.upper() == colecao_atual.upper():
+                # Pegar idproduto do link "Adicionar à pasta"
+                add_link = card.select_one('a.bt-add[href*="idproduto="]')
+                if add_link:
+                    href = add_link['href']
+                    idproduto = href.split('idproduto=')[1]
+                    print(f"✅ Produto encontrado: {numero} ({colecao}) - idproduto: {idproduto}")
+                    return idproduto
+        
+        print(f"❌ Produto não encontrado: {numero} ({colecao})")
+        return None
+    
     def search_card(self, numero, colecao, tipo="", idioma=""):
         """Busca carta na pasta com filtros de coleção, tipo e idioma"""
         resp = self.scraper.get('https://mypcards.com/aocarmo/pokemon', params={

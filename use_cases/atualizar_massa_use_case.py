@@ -67,15 +67,53 @@ class AtualizarMassaUseCase:
                             'status': 'erro_atualizar'
                         })
                 else:
-                    # Carta não existe - não pode criar sem idproduto
-                    print(f"⚠️ Carta não encontrada: {numero} ({colecao}) - Não é possível criar automaticamente")
-                    resultados.append({
-                        'numero': numero,
-                        'colecao': colecao,
-                        'tipo': tipo,
-                        'idioma': idioma,
-                        'status': 'nao_encontrada'
-                    })
+                    # Carta não existe - buscar idproduto e criar
+                    print(f"⚠️ Carta não encontrada na pasta: {numero} ({colecao}) - Buscando no site...")
+                    
+                    idproduto = self.service.search_product_id(numero, colecao)
+                    
+                    if idproduto:
+                        # Criar carta
+                        card_data = {
+                            'idproduto': idproduto,
+                            'numero': numero,
+                            'colecao': colecao,
+                            'tipo': tipo,
+                            'idioma_nome': idioma,
+                            'qualidade': 'NM',
+                            'preco': preco,
+                            'quantidade': quantidade
+                        }
+                        
+                        if self.service.create_card(card_data):
+                            print(f"✅ Carta criada: {numero} ({colecao}) | Preço: {preco} | Qtd: {quantidade}")
+                            resultados.append({
+                                'numero': numero,
+                                'colecao': colecao,
+                                'tipo': tipo,
+                                'idioma': idioma,
+                                'status': 'criada',
+                                'preco': preco,
+                                'quantidade': quantidade
+                            })
+                        else:
+                            print(f"❌ Erro ao criar carta: {numero}")
+                            resultados.append({
+                                'numero': numero,
+                                'colecao': colecao,
+                                'tipo': tipo,
+                                'idioma': idioma,
+                                'status': 'erro_criar'
+                            })
+                    else:
+                        print(f"❌ Produto não encontrado no site: {numero} ({colecao})")
+                        resultados.append({
+                            'numero': numero,
+                            'colecao': colecao,
+                            'tipo': tipo,
+                            'idioma': idioma,
+                            'status': 'produto_nao_encontrado'
+                        })
                     
             except Exception as e:
                 resultados.append({
