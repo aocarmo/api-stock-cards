@@ -110,9 +110,13 @@ class MypService:
             colecao_elemento = card.select_one('.card-edicao')
             colecao_atual = colecao_elemento.get_text(strip=True) if colecao_elemento else ""
             
-            print(f"DEBUG - Produto: colecao='{colecao_atual}'")
+            # Limpar strings para comparação
+            colecao_clean = colecao.upper().strip()
+            colecao_atual_clean = colecao_atual.upper().strip()
             
-            if colecao.upper() == colecao_atual.upper():
+            print(f"DEBUG - Produto: colecao='{colecao_atual}' (clean: '{colecao_atual_clean}')")
+            
+            if colecao_clean == colecao_atual_clean:
                 # Pegar idproduto do link "Adicionar à pasta"
                 add_link = card.select_one('a.bt-add[href*="idproduto="]')
                 if add_link:
