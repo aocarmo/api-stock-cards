@@ -93,44 +93,31 @@ class MypService:
         return None
     
     def search_product_id(self, numero, colecao):
-        """Busca idproduto no site todo quando carta não está na pasta (ignora tipo)"""
-        resp = self.scraper.get('https://mypcards.com/todos', params={
-            'ProdutoSearch[query]': numero
+        """Busca idproduto usando API de busca"""
+        resp = self.scraper.get('https://mypcards.com/produto/search', params={
+            'marca': 'pokemon',
+            'term': numero
         })
-        soup = BeautifulSoup(resp.text, 'html.parser')
         
-        # Buscar cards que correspondem à coleção
-        cards = soup.select('.card')
-        
-        print(f"DEBUG - Buscando produto: {numero} | Coleção: {colecao}")
-        print(f"DEBUG - Produtos encontrados: {len(cards)}")
-        
-        for card in cards:
-            # Verificar coleção
-            colecao_elemento = card.select_one('.card-edicao')
-            colecao_atual = colecao_elemento.get_text(strip=True) if colecao_elemento else ""
+        try:
+            produtos = resp.json()
+            print(f"DEBUG - Buscando produto: {numero} | Coleção: {colecao}")
+            print(f"DEBUG - Produtos encontrados: {len(produtos)}")
             
-            # Limpar strings para comparação
-            colecao_clean = colecao.upper().strip()
-            colecao_atual_clean = colecao_atual.upper().strip()
-            
-            print(f"DEBUG - Produto: colecao='{colecao_atual}' (clean: '{colecao_atual_clean}')")
-            
-            if colecao_clean == colecao_atual_clean:
-                print(f"DEBUG - Match encontrado para coleção: {colecao_atual}")
-                # Pegar idproduto do link "Adicionar à pasta"
-                add_link = card.select_one('a.bt-add[href*="idproduto="]')
-                print(f"DEBUG - Link adicionar encontrado: {add_link is not None}")
-                if add_link:
-                    href = add_link['href']
-                    idproduto = href.split('idproduto=')[1]
+            for produto in produtos:
+                nome = produto.get('nomeenproduto', '')
+                # Extrair coleção do nome (formato: "Nome COLECAO numero/total")
+                if f" {colecao.upper()} " in nome.upper():
+                    idproduto = produto['idproduto']
                     print(f"✅ Produto encontrado: {numero} ({colecao}) - idproduto: {idproduto}")
                     return idproduto
-                else:
-                    print(f"DEBUG - Link 'Adicionar à pasta' não encontrado para {numero} ({colecao})")
-        
-        print(f"❌ Produto não encontrado: {numero} ({colecao})")
-        return None
+            
+            print(f"❌ Produto não encontrado: {numero} ({colecao})")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Erro ao buscar produto: {e}")
+            return None
     
     def search_card(self, numero, colecao, tipo="", idioma=""):
         """Busca carta na pasta com filtros de coleção, tipo e idioma"""
