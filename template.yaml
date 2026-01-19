@@ -39,7 +39,6 @@ Resources:
   # S3 Bucket para CSVs
   CsvBucket:
     Type: AWS::S3::Bucket
-    DependsOn: ProducerPermission
     Properties:
       BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
       NotificationConfiguration:
@@ -106,8 +105,13 @@ Resources:
       Layers:
         - !Ref DependenciesLayer
       Policies:
-        - S3CrudPolicy:
-            BucketName: !Ref CsvBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource:
+                - !Sub arn:aws:s3:::${ProjectName}-csv-${Environment}-${AWS::AccountId}/*
         - DynamoDBCrudPolicy:
             TableName: !Ref FilesTable
       Events:
@@ -137,8 +141,14 @@ Resources:
         Variables:
           QUEUE_URL: !Ref ProcessingQueue
       Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref CsvBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Sub arn:aws:s3:::${ProjectName}-csv-${Environment}-${AWS::AccountId}
+                - !Sub arn:aws:s3:::${ProjectName}-csv-${Environment}-${AWS::AccountId}/*
         - DynamoDBCrudPolicy:
             TableName: !Ref FilesTable
         - SQSSendMessagePolicy:
