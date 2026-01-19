@@ -23,6 +23,11 @@ class RecadastrarUseCase:
         cartas_pendentes = []
         resultados = []
         
+        # Pegar CSRF uma vez no início
+        csrf = self.service.get_csrf()
+        if not csrf:
+            raise Exception("Erro ao obter CSRF token")
+        
         for carta in cartas:
             numero = carta['numero']
             colecao = carta['colecao']
@@ -43,7 +48,6 @@ class RecadastrarUseCase:
                 # Excluir carta
                 if self.service.delete_card(card_data['id_estoque']):
                     print(f"Carta {numero} ({colecao}) ({tipo}) ({idioma}) excluída")
-                    time.sleep(2)  # Delay após exclusão
                 else:
                     resultados.append({'numero': numero, 'colecao': colecao, 'tipo': tipo, 'idioma': idioma, 'status': 'erro_deletar'})
                     cartas_pendentes.pop()
@@ -63,7 +67,6 @@ class RecadastrarUseCase:
                         'idioma': carta_pendente.get('idioma_nome', ''),
                         'status': 'ok'
                     })
-                    time.sleep(2)  # Delay após cadastro
                 else:
                     resultados.append({
                         'numero': carta_pendente['numero'],

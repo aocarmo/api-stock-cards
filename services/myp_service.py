@@ -14,6 +14,8 @@ class MypService:
     def __init__(self):
         self.scraper = None
         self.session_file = 'session.json'
+        self._csrf_token = None
+        self._csrf_timestamp = 0
     
     # Auth methods
     def get_session(self):
@@ -68,12 +70,25 @@ class MypService:
         self.scraper.cookies.update(cookies)
     
     # Card methods
-    def get_csrf(self):
-        """Pega CSRF token"""
+    def get_csrf(self, force_refresh=False):
+        """Pega CSRF token com cache de 5 minutos"""
+        import time
+        
+        # Se tem cache válido (menos de 5 minutos), retorna
+        if not force_refresh and self._csrf_token and (time.time() - self._csrf_timestamp) < 300:
+            return self._csrf_token
+        
+        # Busca novo token
         resp = self.scraper.get('https://mypcards.com/aocarmo')
         soup = BeautifulSoup(resp.text, 'html.parser')
         csrf_meta = soup.find('meta', {'name': 'csrf-token'})
-        return csrf_meta['content'] if csrf_meta else None
+        
+        if csrf_meta:
+            self._csrf_token = csrf_meta['content']
+            self._csrf_timestamp = time.time()
+            return self._csrf_token
+        
+        return None
     
     def search_card(self, numero, colecao, tipo="", idioma=""):
         """Busca carta na pasta com filtros de coleção, tipo e idioma"""
