@@ -114,8 +114,8 @@ Resources:
       FunctionName: !Sub ${ProjectName}-api-${Environment}
       CodeUri: ./
       Handler: lambdas.api_handler.handler
-      Timeout: 30
-      MemorySize: 512
+      Timeout: 60
+      MemorySize: 1024
       Role: !GetAtt LambdaExecutionRole.Arn
       Layers:
         - !Ref DependenciesLayer
