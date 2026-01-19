@@ -31,29 +31,24 @@ class MypService:
             cookies = self.get_session()
             identity_cookie = cookies.get('_identity', '')
             
-            # Cookie _identity tem formato: base64:json com [user_id, token, expire]
-            import base64
+            # Cookie _identity é um formato serializado do PHP
+            # Formato: hash:2:{i:0;s:9:"_identity";i:1;s:51:"[109299,\"token\",expire]";}
             import urllib.parse
+            import re
             
             # Decodificar URL
             decoded = urllib.parse.unquote(identity_cookie)
-            # Extrair parte base64 (após ":")
-            if ':' in decoded:
-                b64_part = decoded.split(':', 1)[1]
-                
-                # Adicionar padding se necessário
-                missing_padding = len(b64_part) % 4
-                if missing_padding:
-                    b64_part += '=' * (4 - missing_padding)
-                
-                # Decodificar base64
-                json_data = base64.b64decode(b64_part).decode('utf-8')
-                # Parse JSON para pegar user_id
-                import ast
-                data = ast.literal_eval(json_data)
-                user_id = data[0] if isinstance(data, list) and len(data) > 0 else None
+            
+            # Extrair o JSON array usando regex
+            match = re.search(r'\[(\d+),', decoded)
+            if match:
+                user_id = match.group(1)
                 print(f"DEBUG - User ID extraído: {user_id}")
-                return str(user_id) if user_id else None
+                return user_id
+            
+            print("DEBUG - Não foi possível extrair user_id do cookie")
+            return None
+            
         except Exception as e:
             print(f"DEBUG - Erro ao extrair user_id: {e}")
             return None
@@ -92,7 +87,9 @@ class MypService:
         
         resp = scraper.post('https://mypcards.com/site/login', data=data)
         
+        print(f"DEBUG - Status code: {resp.status_code}")
         print(f"DEBUG - URL após login: {resp.url}")
+        print(f"DEBUG - Response text (primeiros 200 chars): {resp.text[:200]}")
         
         if 'pokemon' in resp.url or 'aocarmo' in resp.url:
             self.save_session(scraper.cookies)
