@@ -37,31 +37,6 @@ jobs:
         run: |
           aws s3 mb s3://myp-cards-deploy --region us-east-1 || echo "Bucket already exists"
       
-      - name: Create SQS queues manually
-        run: |
-          # Create processing queue
-          QUEUE_URL=$(aws sqs create-queue \
-            --queue-name queue-myp-cards-processing-dev \
-            --attributes VisibilityTimeout=900,MessageRetentionPeriod=1209600,ReceiveMessageWaitTimeSeconds=20 \
-            --region us-east-1 \
-            --query 'QueueUrl' \
-            --output text 2>/dev/null || aws sqs get-queue-url --queue-name queue-myp-cards-processing-dev --query 'QueueUrl' --output text)
-          
-          QUEUE_ARN=$(aws sqs get-queue-attributes \
-            --queue-url $QUEUE_URL \
-            --attribute-names QueueArn \
-            --query 'Attributes.QueueArn' \
-            --output text)
-          
-          echo "QUEUE_URL=$QUEUE_URL" >> $GITHUB_ENV
-          echo "QUEUE_ARN=$QUEUE_ARN" >> $GITHUB_ENV
-          
-          # Create DLQ
-          aws sqs create-queue \
-            --queue-name queue-myp-cards-dlq-dev \
-            --attributes MessageRetentionPeriod=1209600 \
-            --region us-east-1 || echo "DLQ already exists"
-      
       - name: Create layer
         run: |
           mkdir -p layer/python

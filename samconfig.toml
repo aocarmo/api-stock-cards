@@ -6,7 +6,7 @@ s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Environment=dev ProcessingQueueUrl=$QUEUE_URL ProcessingQueueArn=$QUEUE_ARN"
+parameter_overrides = "Environment=dev"
 
 [dev.deploy.parameters]
 stack_name = "myp-cards-dev"
@@ -14,7 +14,7 @@ s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Environment=dev ProcessingQueueUrl=$QUEUE_URL ProcessingQueueArn=$QUEUE_ARN"
+parameter_overrides = "Environment=dev"
 
 [staging.deploy.parameters]
 stack_name = "myp-cards-staging"
@@ -22,7 +22,7 @@ s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Environment=staging ProcessingQueueUrl=$QUEUE_URL ProcessingQueueArn=$QUEUE_ARN"
+parameter_overrides = "Environment=staging"
 
 [prod.deploy.parameters]
 stack_name = "myp-cards-prod"
@@ -30,4 +30,4 @@ s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Environment=prod ProcessingQueueUrl=$QUEUE_URL ProcessingQueueArn=$QUEUE_ARN"
+parameter_overrides = "Environment=prod"
