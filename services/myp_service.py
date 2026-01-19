@@ -25,6 +25,33 @@ class MypService:
         with open(self.session_file, 'r') as f:
             return json.load(f)
     
+    def get_user_id(self):
+        """Extrai ID do usuário do cookie _identity"""
+        try:
+            cookies = self.get_session()
+            identity_cookie = cookies.get('_identity', '')
+            
+            # Cookie _identity tem formato: base64:json com [user_id, token, expire]
+            import base64
+            import urllib.parse
+            
+            # Decodificar URL
+            decoded = urllib.parse.unquote(identity_cookie)
+            # Extrair parte base64 (após ":")
+            if ':' in decoded:
+                b64_part = decoded.split(':', 1)[1]
+                # Decodificar base64
+                json_data = base64.b64decode(b64_part).decode('utf-8')
+                # Parse JSON para pegar user_id
+                import ast
+                data = ast.literal_eval(json_data)
+                user_id = data[0] if isinstance(data, list) and len(data) > 0 else None
+                print(f"DEBUG - User ID extraído: {user_id}")
+                return str(user_id) if user_id else None
+        except Exception as e:
+            print(f"DEBUG - Erro ao extrair user_id: {e}")
+            return None
+    
     def save_session(self, cookies):
         """Salva cookies"""
         with open(self.session_file, 'w') as f:
@@ -121,9 +148,14 @@ class MypService:
     
     def search_card(self, numero, colecao, tipo="", idioma=""):
         """Busca carta na pasta usando API"""
+        user_id = self.get_user_id()
+        if not user_id:
+            print("❌ Não foi possível obter ID do usuário")
+            return None
+            
         resp = self.scraper.get('https://mypcards.com/produto/search', params={
             'marca': 'pokemon',
-            'idusuario': '109299',  # ID do usuário logado
+            'idusuario': user_id,
             'term': numero
         })
         
