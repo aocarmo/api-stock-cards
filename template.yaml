@@ -26,6 +26,32 @@ Globals:
         AWS_DEFAULT_REGION: !Ref AWS::Region
 
 Resources:
+  # IAM Role padrão para Lambdas
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub ${ProjectName}-lambda-policy-${Environment}
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                  - dynamodb:*
+                  - sqs:*
+                  - logs:*
+                Resource: '*'
+
   # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
@@ -91,18 +117,9 @@ Resources:
       Handler: lambdas.api_handler.handler
       Timeout: 30
       MemorySize: 512
+      Role: !GetAtt LambdaExecutionRole.Arn
       Layers:
         - !Ref DependenciesLayer
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action:
-                - s3:PutObject
-                - s3:GetObject
-              Resource:
-                - !Sub arn:aws:s3:::${ProjectName}-csv-${Environment}-${AWS::AccountId}/*
-        - DynamoDBCrudPolicy:
-            TableName: !Ref FilesTable
       Events:
         ApiRoot:
           Type: Api
@@ -126,22 +143,10 @@ Resources:
       Handler: producer.lambda_handler
       Timeout: 300
       MemorySize: 1024
+      Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
           QUEUE_URL: !Ref ProcessingQueue
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:ListBucket
-              Resource:
-                - !Sub arn:aws:s3:::${ProjectName}-csv-${Environment}-${AWS::AccountId}
-                - !Sub arn:aws:s3:::${ProjectName}-csv-${Environment}-${AWS::AccountId}/*
-        - DynamoDBCrudPolicy:
-            TableName: !Ref FilesTable
-        - SQSSendMessagePolicy:
-            QueueName: !GetAtt ProcessingQueue.QueueName
 
   ProducerPermission:
     Type: AWS::Lambda::Permission
@@ -160,13 +165,9 @@ Resources:
       Handler: lambdas.consumer.lambda_handler
       Timeout: 900
       MemorySize: 1024
+      Role: !GetAtt LambdaExecutionRole.Arn
       Layers:
         - !Ref DependenciesLayer
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref FilesTable
-        - SQSPollerPolicy:
-            QueueName: !GetAtt ProcessingQueue.QueueName
       Events:
         SQSEvent:
           Type: SQS
