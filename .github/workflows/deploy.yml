@@ -1,0 +1,64 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - develop
+      - staging
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Set environment
+        id: set-env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "ENV=prod" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=myp-cards-prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
+            echo "ENV=staging" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=myp-cards-staging" >> $GITHUB_OUTPUT
+          else
+            echo "ENV=develop" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=myp-cards-dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create layer
+        run: |
+          mkdir -p layer/python
+          pip install -r requirements.txt -t layer/python/
+      
+      - name: SAM Build
+        run: sam build
+      
+      - name: SAM Deploy
+        run: |
+          sam deploy \
+            --stack-name ${{ steps.set-env.outputs.STACK_NAME }} \
+            --s3-bucket myp-cards-deploy \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --tags Environment=${{ steps.set-env.outputs.ENV }}
+

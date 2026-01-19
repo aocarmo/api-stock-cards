@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: MYP Cards - Atualização em Massa com SQS
+
+Globals:
+  Function:
+    Timeout: 900
+    MemorySize: 512
+    Runtime: python3.11
+    Environment:
+      Variables:
+        DYNAMODB_TABLE: !Ref FilesTable
+        MYP_USERNAME: "alex.carmo91@gmail.com"
+        MYP_PASSWORD: "sua-senha"
+        CHUNK_SIZE: "50"
+        S3_BUCKET: !Ref CsvBucket
+
+Resources:
+  # API Gateway
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+
+  # S3 Bucket para CSVs
+  CsvBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub myp-cards-csv-${AWS::AccountId}
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: csv-uploads/
+                  - Name: suffix
+                    Value: .csv
+            Function: !GetAtt ProducerFunction.Arn
+
+  # SQS Queue
+  ProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: myp-cards-processing-queue
+      VisibilityTimeout: 900
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+
+  # DLQ
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: myp-cards-dlq
+      MessageRetentionPeriod: 1209600
+
+  # DynamoDB
+  FilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: myp-cards-files
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: file_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: file_id
+          KeyType: HASH
+
+  # Layer
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: myp-cards-deps
+      Description: Dependências Python
+      ContentUri: ./layer/
+      CompatibleRuntimes:
+        - python3.11
+    Metadata:
+      BuildMethod: python3.11
+
+  # Lambda: API Proxy (todos os endpoints)
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: myp-api
+      CodeUri: ./
+      Handler: lambdas.api_handler.handler
+      Timeout: 30
+      MemorySize: 512
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref CsvBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FilesTable
+      Events:
+        ApiRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /
+            Method: ANY
+        ApiProxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /{proxy+}
+            Method: ANY
+
+  # Lambda: Producer
+  ProducerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: myp-producer
+      CodeUri: lambdas/
+      Handler: producer.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Environment:
+        Variables:
+          QUEUE_URL: !Ref ProcessingQueue
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref CsvBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FilesTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ProcessingQueue.QueueName
+
+  ProducerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ProducerFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !GetAtt CsvBucket.Arn
+
+  # Lambda: Consumer
+  ConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: myp-consumer
+      CodeUri: ./
+      Handler: lambdas.consumer.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FilesTable
+        - SQSPollerPolicy:
+            QueueName: !GetAtt ProcessingQueue.QueueName
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ProcessingQueue.Arn
+            Enabled: true
+            BatchSize: 1
+            ScalingConfig:
+              MaximumConcurrency: 50
+
+Outputs:
+  ApiUrl:
+    Description: URL da API
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod
+  
+  CsvBucketName:
+    Description: Nome do bucket S3
+    Value: !Ref CsvBucket
+  
+  QueueUrl:
+    Description: URL da fila SQS
+    Value: !Ref ProcessingQueue
+  
+  FilesTableName:
+    Description: Nome da tabela DynamoDB
+    Value: !Ref FilesTable
