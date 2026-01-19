@@ -35,13 +35,10 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "ENV=prod" >> $GITHUB_OUTPUT
-            echo "STACK_NAME=myp-cards-prod" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
             echo "ENV=staging" >> $GITHUB_OUTPUT
-            echo "STACK_NAME=myp-cards-staging" >> $GITHUB_OUTPUT
           else
-            echo "ENV=develop" >> $GITHUB_OUTPUT
-            echo "STACK_NAME=myp-cards-dev" >> $GITHUB_OUTPUT
+            echo "ENV=dev" >> $GITHUB_OUTPUT
           fi
       
       - name: Create layer
@@ -55,10 +52,7 @@ jobs:
       - name: SAM Deploy
         run: |
           sam deploy \
-            --stack-name ${{ steps.set-env.outputs.STACK_NAME }} \
-            --s3-bucket myp-cards-deploy \
-            --capabilities CAPABILITY_IAM \
+            --config-env ${{ steps.set-env.outputs.ENV }} \
             --no-confirm-changeset \
-            --no-fail-on-empty-changeset \
-            --tags Environment=${{ steps.set-env.outputs.ENV }}
+            --no-fail-on-empty-changeset
 
