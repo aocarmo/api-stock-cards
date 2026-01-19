@@ -2,7 +2,7 @@ version = 0.1
 
 [default.deploy.parameters]
 stack_name = "myp-cards-dev"
-resolve_s3 = true
+s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
@@ -10,7 +10,7 @@ parameter_overrides = []
 
 [staging.deploy.parameters]
 stack_name = "myp-cards-staging"
-resolve_s3 = true
+s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
@@ -18,7 +18,7 @@ parameter_overrides = []
 
 [prod.deploy.parameters]
 stack_name = "myp-cards-prod"
-resolve_s3 = true
+s3_bucket = "myp-cards-deploy"
 s3_prefix = "myp-cards"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
