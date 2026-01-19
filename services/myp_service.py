@@ -117,13 +117,17 @@ class MypService:
             print(f"DEBUG - Produto: colecao='{colecao_atual}' (clean: '{colecao_atual_clean}')")
             
             if colecao_clean == colecao_atual_clean:
+                print(f"DEBUG - Match encontrado para coleção: {colecao_atual}")
                 # Pegar idproduto do link "Adicionar à pasta"
                 add_link = card.select_one('a.bt-add[href*="idproduto="]')
+                print(f"DEBUG - Link adicionar encontrado: {add_link is not None}")
                 if add_link:
                     href = add_link['href']
                     idproduto = href.split('idproduto=')[1]
                     print(f"✅ Produto encontrado: {numero} ({colecao}) - idproduto: {idproduto}")
                     return idproduto
+                else:
+                    print(f"DEBUG - Link 'Adicionar à pasta' não encontrado para {numero} ({colecao})")
         
         print(f"❌ Produto não encontrado: {numero} ({colecao})")
         return None
