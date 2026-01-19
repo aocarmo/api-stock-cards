@@ -40,6 +40,12 @@ class MypService:
             # Extrair parte base64 (após ":")
             if ':' in decoded:
                 b64_part = decoded.split(':', 1)[1]
+                
+                # Adicionar padding se necessário
+                missing_padding = len(b64_part) % 4
+                if missing_padding:
+                    b64_part += '=' * (4 - missing_padding)
+                
                 # Decodificar base64
                 json_data = base64.b64decode(b64_part).decode('utf-8')
                 # Parse JSON para pegar user_id
