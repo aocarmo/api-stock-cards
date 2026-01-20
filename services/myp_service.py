@@ -226,9 +226,10 @@ class MypService:
                         tipo_td = row.find('td', class_='estoque-lista-nomeenfoil')
                         tipo_text = tipo_td.get_text(strip=True).lower() if tipo_td else ''
                         
-                        # Verificar idioma
+                        # Verificar idioma (está no title do span.flag-icon)
                         idioma_td = row.find('td', class_='estoque-lista-qualidadenome')
-                        idioma_text = idioma_td.get_text(strip=True).lower() if idioma_td else ''
+                        idioma_span = idioma_td.find('span', class_='flag-icon') if idioma_td else None
+                        idioma_text = idioma_span.get('title', '').lower() if idioma_span else ''
                         
                         print(f"DEBUG - Row: tipo_text='{tipo_text}' | idioma_text='{idioma_text}'")
                         
