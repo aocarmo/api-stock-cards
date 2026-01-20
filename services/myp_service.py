@@ -159,45 +159,47 @@ class MypService:
             return None
     
     def search_card(self, numero, colecao, tipo="", idioma=""):
-        """Busca carta na pasta usando API"""
+        """Busca carta na pasta do usuário"""
+        username = self.username_url or 'pokemon'
         user_id = self.get_user_id()
         if not user_id:
             print("❌ Não foi possível obter ID do usuário")
             return None
-            
-        resp = self.scraper.get('https://mypcards.com/produto/search', params={
-            'marca': 'pokemon',
-            'idusuario': user_id,
-            'term': numero
-        })
         
-        try:
-            produtos = resp.json()
-            print(f"DEBUG - Buscando: {numero} | Coleção: {colecao} | Tipo: {tipo} | Idioma: {idioma}")
-            print(f"DEBUG - Cartas encontradas: {len(produtos)}")
-            
-            for produto in produtos:
-                nome = produto.get('nomeenproduto', '')
-                print(f"DEBUG - Produto retornado: {produto}")
-                # Extrair coleção do nome (formato: "Nome COLECAO numero/total")
-                if f" {colecao.upper()} " in nome.upper():
-                    # TODO: Implementar filtros de tipo e idioma se necessário
-                    # Por enquanto retorna a primeira que bater a coleção
-                    print(f"DEBUG - Carta encontrada na pasta: {nome}")
+        # Buscar na página da pasta
+        resp = self.scraper.get(f'https://mypcards.com/{username}/pasta')
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # Procurar por cards que contenham o número e coleção
+        cards = soup.find_all('div', class_='card-item')
+        
+        print(f"DEBUG - Buscando: {numero} | Coleção: {colecao} | Tipo: {tipo} | Idioma: {idioma}")
+        print(f"DEBUG - Cards encontrados na pasta: {len(cards)}")
+        
+        for card in cards:
+            # Extrair informações do card
+            link = card.find('a', href=True)
+            if not link:
+                continue
+                
+            # URL formato: /pokemon/estoque/update?id=XXXXX
+            if 'estoque/update?id=' in link['href']:
+                id_estoque = link['href'].split('id=')[1].split('&')[0]
+                nome = card.get_text(strip=True)
+                
+                # Verificar se bate número e coleção
+                if numero in nome and colecao.upper() in nome.upper():
+                    print(f"DEBUG - Carta encontrada na pasta: {nome} (ID: {id_estoque})")
                     return {
-                        'id_estoque': produto.get('id') or produto.get('idestoque') or produto['idproduto'],
+                        'id_estoque': id_estoque,
                         'numero': numero,
                         'colecao': colecao,
-                        'preco': produto.get('preco', '0.00'),
-                        'quantidade': produto.get('quantidade', '1')
+                        'preco': '0.00',
+                        'quantidade': '1'
                     }
-            
-            print(f"DEBUG - Carta não encontrada na pasta")
-            return None
-            
-        except Exception as e:
-            print(f"❌ Erro ao buscar carta na pasta: {e}")
-            return None
+        
+        print(f"DEBUG - Carta não encontrada na pasta")
+        return None
     
     def delete_card(self, id_estoque):
         """Exclui carta usando endpoint direto"""
