@@ -1,4 +1,5 @@
 numero,colecao,tipo,idioma,preco,quantidade
-077/131,PRE,normal,ingles,150.00,2
-161/131,PRE,normal,portugues,2500.00,5
-093/182,DRI,reverse-foil,portugues,399.00,1
+077/131,PRE,normal,ingles,1.30,4
+161/131,PRE,normal,portugues,20500.00,5
+093/182,DRI,reverse-foil,portugues,0.99,5
+093/182,DRI,foil,ingles,0.99,5

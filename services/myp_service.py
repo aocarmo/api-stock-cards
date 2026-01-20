@@ -223,14 +223,33 @@ class MypService:
                     if edit_link:
                         href = edit_link['href']
                         id_estoque = href.split('/estoque/update/')[1].split('?')[0]
-                        print(f"DEBUG - ID do estoque encontrado: {id_estoque}")
+                        
+                        # Extrair quantidade e preço da tabela
+                        # Formato: <td class="estoque-lista-quantidadeestoque">3 un.</td>
+                        qtd_td = soup.find('td', class_='estoque-lista-quantidadeestoque')
+                        quantidade_atual = '1'
+                        if qtd_td:
+                            qtd_text = qtd_td.get_text(strip=True)
+                            quantidade_atual = qtd_text.split()[0]  # Pega só o número antes de "un."
+                        
+                        # Formato: <td class="estoque-lista-precoestoque"><span class="moeda">R$ 0,99</span></td>
+                        preco_td = soup.find('td', class_='estoque-lista-precoestoque')
+                        preco_atual = '0.00'
+                        if preco_td:
+                            preco_span = preco_td.find('span', class_='moeda')
+                            if preco_span:
+                                preco_text = preco_span.get_text(strip=True)
+                                # Remove "R$" e espaços, troca vírgula por ponto
+                                preco_atual = preco_text.replace('R$', '').replace(' ', '').replace(',', '.')
+                        
+                        print(f"DEBUG - ID do estoque encontrado: {id_estoque} | Qtd atual: {quantidade_atual} | Preço atual: {preco_atual}")
                         
                         return {
                             'id_estoque': id_estoque,
                             'numero': numero,
                             'colecao': colecao,
-                            'preco': '0.00',
-                            'quantidade': '1'
+                            'preco': preco_atual,
+                            'quantidade': quantidade_atual
                         }
             
             print(f"DEBUG - Carta não encontrada na pasta")
