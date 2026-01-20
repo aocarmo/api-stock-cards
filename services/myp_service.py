@@ -255,6 +255,10 @@ class MypService:
         form = soup.find('form', {'id': 'estoque-form'})
         if not form:
             print(f"❌ Formulário não encontrado para id_estoque: {id_estoque}")
+            print(f"DEBUG - URL acessada: {url}")
+            print(f"DEBUG - Status: {resp.status_code}")
+            print(f"DEBUG - URL final: {resp.url}")
+            print(f"DEBUG - HTML (primeiros 1000 chars): {resp.text[:1000]}")
             return False
             
         csrf = soup.find('meta', {'name': 'csrf-token'})['content']
