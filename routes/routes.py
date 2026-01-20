@@ -10,6 +10,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from dtos.card_dtos import RecadastrarRequestDTO, AtualizarRequestDTO, ResponseDTO, CsvUploadResponseDTO, FileStatusDTO
 from use_cases.recadastrar_use_case import RecadastrarUseCase
 from use_cases.atualizar_use_case import AtualizarUseCase
+from use_cases.excluir_massa_use_case import ExcluirMassaUseCase
 
 router = APIRouter(prefix="/api/v1", tags=["Cards"])
 
@@ -107,6 +108,51 @@ async def atualizar_cartas(request: AtualizarRequestDTO) -> ResponseDTO:
         return ResponseDTO(resultados=resultados)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na atualização: {str(e)}")
+
+@router.post(
+    "/excluir",
+    response_model=ResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Excluir cartas",
+    description="""
+    Exclui cartas da pasta do usuário.
+    
+    **Processo:**
+    1. Busca a carta por número + coleção + tipo + idioma
+    2. Exclui a carta encontrada
+    
+    **Formato:** Mesmo formato do CSV (numero, colecao, tipo, idioma)
+    """,
+    responses={
+        200: {
+            "description": "Cartas processadas com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "resultados": [
+                            {
+                                "numero": "077/131",
+                                "colecao": "SVI",
+                                "tipo": "normal",
+                                "idioma": "ingles",
+                                "status": "excluida"
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        500: {"description": "Erro no processamento"}
+    }
+)
+async def excluir_cartas(request: RecadastrarRequestDTO) -> ResponseDTO:
+    try:
+        use_case = ExcluirMassaUseCase()
+        cartas_dict = [carta.dict() for carta in request.cartas]
+        resultados = use_case.execute(cartas_dict)
+        return ResponseDTO(resultados=resultados)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro na exclusão: {str(e)}")
 
 @router.post(
     "/upload-csv",
