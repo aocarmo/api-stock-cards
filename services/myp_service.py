@@ -245,13 +245,31 @@ class MypService:
                             tipo_match = True
                         
                         # Mapear idiomas
-                        idioma_match = False
-                        if idioma == 'portugues' and 'português' in idioma_text:
-                            idioma_match = True
-                        elif idioma == 'ingles' and 'inglês' in idioma_text:
-                            idioma_match = True
-                        elif idioma == 'espanhol' and 'espanhol' in idioma_text:
-                            idioma_match = True
+                        idioma_map = {
+                            'português': 'portugues',
+                            'portugues': 'portugues',
+                            'inglês': 'ingles',
+                            'ingles': 'ingles',
+                            'espanhol': 'espanhol',
+                            'francês': 'frances',
+                            'frances': 'frances',
+                            'alemão': 'alemao',
+                            'alemao': 'alemao',
+                            'italiano': 'italiano',
+                            'japonês': 'japones',
+                            'japones': 'japones',
+                            'coreano': 'coreano',
+                            'russo': 'russo',
+                            'chinês': 'chines',
+                            'chines': 'chines',
+                            'tailandês': 'tailandes',
+                            'tailandes': 'tailandes'
+                        }
+                        
+                        idioma_normalizado = idioma_map.get(idioma_text, idioma_text)
+                        idioma_csv_normalizado = idioma_map.get(idioma.lower(), idioma.lower())
+                        
+                        idioma_match = (idioma_normalizado == idioma_csv_normalizado)
                         
                         # Se bater tipo e idioma, pegar esse estoque
                         if tipo_match and idioma_match:
