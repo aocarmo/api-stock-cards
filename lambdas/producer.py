@@ -40,6 +40,10 @@ def lambda_handler(event, context):
         bucket = event['Records'][0]['s3']['bucket']['name']
         key = event['Records'][0]['s3']['object']['key']
         
+        # Detectar operação (delete ou update)
+        operation = 'delete' if key.startswith('csv-excluir/') else 'update'
+        print(f"🔧 Operação detectada: {operation}")
+        
         print(f"📥 Processando CSV: s3://{bucket}/{key}")
         
         # Baixar e ler CSV
@@ -83,7 +87,8 @@ def lambda_handler(event, context):
             message = {
                 'file_id': file_id,
                 'chunk_id': chunk_id,
-                'lines': chunk_lines
+                'lines': chunk_lines,
+                'operation': operation
             }
             print(f"  📨 Enviando chunk {chunk_id + 1}/{total_chunks} ({len(chunk_lines)} linhas)")
             

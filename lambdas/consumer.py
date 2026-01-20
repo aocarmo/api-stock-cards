@@ -18,6 +18,7 @@ table = dynamodb.Table(TABLE_NAME)
 def lambda_handler(event, context):
     """Processa mensagens do SQS"""
     from use_cases.atualizar_massa_use_case import AtualizarMassaUseCase
+    from use_cases.excluir_massa_use_case import ExcluirMassaUseCase
     
     total_processadas = 0
     
@@ -27,15 +28,23 @@ def lambda_handler(event, context):
             file_id = body['file_id']
             chunk_id = body['chunk_id']
             lines = body['lines']
+            operation = body.get('operation', 'update')
             
-            print(f"🔄 Processando chunk {chunk_id} do arquivo {file_id}")
+            print(f"🔄 Processando chunk {chunk_id} do arquivo {file_id} (operação: {operation})")
             
             # Processar cartas
-            use_case = AtualizarMassaUseCase()
+            if operation == 'delete':
+                use_case = ExcluirMassaUseCase()
+            else:
+                use_case = AtualizarMassaUseCase()
+                
             resultados = use_case.execute(lines)
             
             # Separar erros
-            erros = [r for r in resultados if r['status'] not in ['atualizada', 'criada']]
+            if operation == 'delete':
+                erros = [r for r in resultados if r['status'] not in ['excluida', 'nao_encontrada']]
+            else:
+                erros = [r for r in resultados if r['status'] not in ['atualizada', 'criada']]
             
             # Atualizar DynamoDB
             update_file_progress(file_id, chunk_id, erros)

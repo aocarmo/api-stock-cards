@@ -249,6 +249,100 @@ async def upload_csv(file: UploadFile = File(..., description="Arquivo CSV com a
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no upload: {str(e)}")
 
+@router.post(
+    "/upload-csv-excluir",
+    response_model=CsvUploadResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Upload CSV para exclusão em massa",
+    description="""
+    Faz upload de arquivo CSV para exclusão em massa.
+    
+    **Fluxo:**
+    1. Valida formato do CSV
+    2. Salva no S3 (pasta csv-excluir/)
+    3. Dispara Lambda Producer
+    4. Producer quebra em chunks de 50 linhas
+    5. Envia chunks para SQS
+    6. 50 Lambdas Consumer processam simultaneamente
+    
+    **Formato CSV obrigatório:**
+    ```
+    numero,colecao,tipo,idioma
+    161/131,PRE,normal,portugues
+    077/131,SVI,foil,ingles
+    ```
+    
+    **Nota:** Não precisa de preço e quantidade para exclusão.
+    """,
+    responses={
+        200: {
+            "description": "CSV enviado com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "CSV enviado com sucesso. Exclusão iniciada.",
+                        "file_id": "file_20260118_200500",
+                        "s3_key": "csv-excluir/20260118_200500_exemplo.csv",
+                        "total_linhas": 100
+                    }
+                }
+            }
+        },
+        400: {"description": "CSV inválido ou campos faltando"}
+    }
+)
+async def upload_csv_excluir(file: UploadFile = File(..., description="Arquivo CSV com as cartas para excluir")) -> CsvUploadResponseDTO:
+    try:
+        # Validar extensão
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Arquivo deve ser CSV")
+        
+        # Ler conteúdo
+        content = await file.read()
+        
+        # Validar CSV
+        csv_reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
+        required_fields = ['numero', 'colecao', 'tipo', 'idioma']
+        
+        if not all(field in csv_reader.fieldnames for field in required_fields):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"CSV deve conter os campos: {', '.join(required_fields)}"
+            )
+        
+        # Contar linhas
+        rows = list(csv_reader)
+        total_linhas = len(rows)
+        
+        # Gerar nome com timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_id = f"file_{timestamp}"
+        s3_key = f"csv-excluir/{timestamp}_{file.filename}"
+        
+        # Upload para S3
+        s3 = boto3.client('s3')
+        bucket_name = os.getenv('S3_BUCKET', 'myp-cards-csv')
+        
+        s3.put_object(
+            Bucket=bucket_name,
+            Key=s3_key,
+            Body=content,
+            ContentType='text/csv',
+            Metadata={'operation': 'delete'}
+        )
+        
+        return CsvUploadResponseDTO(
+            message="CSV enviado com sucesso. Exclusão iniciada.",
+            file_id=file_id,
+            s3_key=s3_key,
+            total_linhas=total_linhas
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no upload: {str(e)}")
+
 @router.get(
     "/status/{file_id}",
     response_model=FileStatusDTO,
