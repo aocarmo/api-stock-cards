@@ -91,6 +91,8 @@ class MypService:
         print(f"DEBUG - Status code: {resp.status_code}")
         print(f"DEBUG - URL após login: {resp.url}")
         print(f"DEBUG - Response text (primeiros 200 chars): {resp.text[:200]}")
+        print(f"DEBUG - Cookies: {dict(scraper.cookies)}")
+        print(f"DEBUG - Headers: {dict(resp.headers)}")
         
         # Extrair username da URL (formato: https://mypcards.com/USERNAME/pokemon)
         if 'pokemon' in resp.url and '/site/login' not in resp.url:
@@ -102,6 +104,20 @@ class MypService:
             
             self.save_session(scraper.cookies)
             return True
+        
+        # Se não redirecionou, tentar extrair do HTML
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # Tentar pegar do link "Minha Pasta"
+        pasta_link = soup.find('a', string=lambda x: x and 'Minha Pasta' in x)
+        if pasta_link and pasta_link.get('href'):
+            username = pasta_link['href'].strip('/')
+            if username:
+                self.username_url = username
+                print(f"DEBUG - Username extraído do link Minha Pasta: {self.username_url}")
+                self.save_session(scraper.cookies)
+                return True
+        
         return False
     
     def init_scraper(self, cookies):
