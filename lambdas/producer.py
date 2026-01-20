@@ -20,31 +20,45 @@ table = dynamodb.Table(TABLE_NAME)
 
 def lambda_handler(event, context):
     """Triggered por S3 quando CSV é uploaded"""
+    print(f"🔄 Producer iniciado")
+    print(f"📦 Event recebido: {json.dumps(event)}")
+    
     try:
         # Verificar se há arquivo em processamento
+        print("🔍 Verificando se há arquivo em processamento...")
         if has_processing_file():
+            print("⚠️ Já existe um arquivo sendo processado")
             return {
                 'statusCode': 429,
                 'body': json.dumps({'error': 'Já existe um arquivo sendo processado'})
             }
         
+        print("✅ Nenhum arquivo em processamento")
+        
         # Pegar info do S3
+        print("📥 Extraindo informações do evento S3...")
         bucket = event['Records'][0]['s3']['bucket']['name']
         key = event['Records'][0]['s3']['object']['key']
         
         print(f"📥 Processando CSV: s3://{bucket}/{key}")
         
         # Baixar e ler CSV
+        print("⬇️ Baixando CSV do S3...")
         response = s3.get_object(Bucket=bucket, Key=key)
         csv_content = response['Body'].read().decode('utf-8')
+        print(f"✅ CSV baixado: {len(csv_content)} bytes")
         
+        print("📖 Lendo CSV...")
         csv_reader = csv.DictReader(StringIO(csv_content))
         rows = list(csv_reader)
+        print(f"✅ CSV lido: {len(rows)} linhas")
         
         file_id = f"file_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         total_chunks = (len(rows) + CHUNK_SIZE - 1) // CHUNK_SIZE
+        print(f"📦 Arquivo será dividido em {total_chunks} chunks de {CHUNK_SIZE} linhas")
         
         # Criar registro no DynamoDB
+        print(f"💾 Criando registro no DynamoDB: {file_id}")
         table.put_item(Item={
             'file_id': file_id,
             'status': 'PROCESSING',
@@ -57,8 +71,10 @@ def lambda_handler(event, context):
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat()
         })
+        print("✅ Registro criado no DynamoDB")
         
         # Quebrar em chunks e enviar para SQS
+        print(f"📤 Enviando {total_chunks} chunks para SQS...")
         for chunk_id in range(total_chunks):
             start = chunk_id * CHUNK_SIZE
             end = min(start + CHUNK_SIZE, len(rows))
@@ -69,15 +85,14 @@ def lambda_handler(event, context):
                 'chunk_id': chunk_id,
                 'lines': chunk_lines
             }
+            print(f"  📨 Enviando chunk {chunk_id + 1}/{total_chunks} ({len(chunk_lines)} linhas)")
             
             sqs.send_message(
                 QueueUrl=QUEUE_URL,
                 MessageBody=json.dumps(message)
             )
-            
-            print(f"📦 Chunk {chunk_id + 1}/{total_chunks} enviado ({len(chunk_lines)} linhas)")
         
-        print(f"✅ {total_chunks} chunks enviados para SQS")
+        print(f"✅ Todos os {total_chunks} chunks enviados para SQS")
         
         return {
             'statusCode': 200,
@@ -89,7 +104,10 @@ def lambda_handler(event, context):
         }
         
     except Exception as e:
-        print(f"❌ Erro: {str(e)}")
+        print(f"❌ ERRO NO PRODUCER: {str(e)}")
+        print(f"❌ Tipo do erro: {type(e).__name__}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
         return {
             'statusCode': 500,
             'body': json.dumps({'error': str(e)})
