@@ -15,7 +15,7 @@ if os.path.exists('.env'):
 class MypService:
     def __init__(self):
         self.scraper = None
-        self.session_file = 'session.json'
+        self.session_file = '/tmp/session.json'
         self._csrf_token = None
         self._csrf_timestamp = 0
         self.username_url = None
