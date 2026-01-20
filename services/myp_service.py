@@ -170,25 +170,32 @@ class MypService:
         resp = self.scraper.get(f'https://mypcards.com/{username}/pasta')
         soup = BeautifulSoup(resp.text, 'html.parser')
         
-        # Procurar por cards que contenham o número e coleção
-        cards = soup.find_all('div', class_='card-item')
+        # Procurar por cards (li.stream-item)
+        cards = soup.find_all('li', class_='stream-item')
         
         print(f"DEBUG - Buscando: {numero} | Coleção: {colecao} | Tipo: {tipo} | Idioma: {idioma}")
         print(f"DEBUG - Cards encontrados na pasta: {len(cards)}")
         
         for card in cards:
-            # Extrair informações do card
-            link = card.find('a', href=True)
-            if not link:
+            # Pegar o nome da carta
+            h3 = card.find('h3')
+            if not h3:
                 continue
-                
-            # URL formato: /pokemon/estoque/update?id=XXXXX
-            if 'estoque/update?id=' in link['href']:
-                id_estoque = link['href'].split('id=')[1].split('&')[0]
-                nome = card.get_text(strip=True)
-                
-                # Verificar se bate número e coleção
-                if numero in nome and colecao.upper() in nome.upper():
+            
+            nome = h3.get_text(strip=True)
+            
+            # Verificar se bate número e coleção
+            if numero in nome and colecao.upper() in nome.upper():
+                # Pegar link de atualização
+                link = card.find('a', href=lambda x: x and 'estoque/update' in x)
+                if link:
+                    # Extrair ID do href (/estoque/update/XXXXX ou /estoque/update?id=XXXXX)
+                    href = link['href']
+                    if '?id=' in href:
+                        id_estoque = href.split('?id=')[1].split('&')[0]
+                    else:
+                        id_estoque = href.split('/estoque/update/')[1].split('?')[0]
+                    
                     print(f"DEBUG - Carta encontrada na pasta: {nome} (ID: {id_estoque})")
                     return {
                         'id_estoque': id_estoque,
@@ -250,7 +257,7 @@ class MypService:
     def update_card(self, id_estoque, preco=None, quantidade=None):
         """Atualiza carta"""
         username = self.username_url or 'pokemon'
-        url = f'https://mypcards.com/{username}/estoque/update?id={id_estoque}'
+        url = f'https://mypcards.com/{username}/estoque/update/{id_estoque}'
         
         resp = self.scraper.get(url)
         soup = BeautifulSoup(resp.text, 'html.parser')
@@ -258,10 +265,6 @@ class MypService:
         form = soup.find('form', {'id': 'estoque-form'})
         if not form:
             print(f"❌ Formulário não encontrado para id_estoque: {id_estoque}")
-            print(f"DEBUG - URL acessada: {url}")
-            print(f"DEBUG - Status: {resp.status_code}")
-            print(f"DEBUG - URL final: {resp.url}")
-            print(f"DEBUG - HTML (primeiros 1000 chars): {resp.text[:1000]}")
             return False
             
         csrf = soup.find('meta', {'name': 'csrf-token'})['content']
