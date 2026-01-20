@@ -182,68 +182,61 @@ class MypService:
             return None
     
     def search_card(self, numero, colecao, tipo="", idioma=""):
-        """Busca carta na pasta do usuário"""
-        username = self.username_url
-        if not username:
-            print("❌ Username não disponível")
-            return None
-        
+        """Busca carta na pasta do usuário usando API"""
         user_id = self.get_user_id()
         if not user_id:
             print("❌ Não foi possível obter ID do usuário")
             return None
         
-        # Buscar na página da pasta
-        url = f'https://mypcards.com/{username}'
-        print(f"DEBUG - Acessando pasta: {url}")
-        resp = self.scraper.get(url)
-        print(f"DEBUG - Status: {resp.status_code}, URL final: {resp.url}")
+        # Buscar usando a API de produtos
+        resp = self.scraper.get('https://mypcards.com/produto/search', params={
+            'marca': 'pokemon',
+            'idusuario': user_id,
+            'term': numero
+        })
         
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        
-        # Procurar por cards (li.stream-item)
-        cards = soup.find_all('li', class_='stream-item')
-        
-        print(f"DEBUG - Buscando: {numero} | Coleção: {colecao} | Tipo: {tipo} | Idioma: {idioma}")
-        print(f"DEBUG - Cards encontrados na pasta: {len(cards)}")
-        
-        for card in cards:
-            # Pegar o nome da carta (h3)
-            h3 = card.find('h3')
-            if not h3:
-                continue
+        try:
+            produtos = resp.json()
+            print(f"DEBUG - Buscando: {numero} | Coleção: {colecao} | Tipo: {tipo} | Idioma: {idioma}")
+            print(f"DEBUG - Produtos encontrados na API: {len(produtos)}")
             
-            nome = h3.get_text(strip=True)
-            
-            # Pegar a coleção (span.card-edicao)
-            edicao_span = card.find('span', class_='card-edicao')
-            colecao_card = edicao_span.get_text(strip=True) if edicao_span else ''
-            
-            print(f"DEBUG - Card na pasta: {nome} | Coleção: {colecao_card}")
-            
-            # Verificar se bate número e coleção
-            if numero in nome and colecao.upper() == colecao_card.upper():
-                # Pegar link de atualização
-                link = card.find('a', href=lambda x: x and 'estoque/update' in x)
-                if link:
-                    # Extrair ID do href (/estoque/update/XXXXX)
-                    href = link['href']
-                    if '?id=' in href:
-                        id_estoque = href.split('?id=')[1].split('&')[0]
-                    else:
-                        id_estoque = href.split('/estoque/update/')[1].split('?')[0]
+            for produto in produtos:
+                nome = produto.get('nomeenproduto', '')
+                print(f"DEBUG - Produto: {nome}")
+                
+                # Verificar se bate número e coleção
+                if numero in nome and colecao.upper() in nome.upper():
+                    # Agora precisa buscar o ID do estoque na página do produto
+                    idproduto = produto.get('idproduto')
+                    print(f"DEBUG - Produto encontrado: {nome} (idproduto: {idproduto})")
                     
-                    print(f"DEBUG - Carta encontrada na pasta: {nome} ({colecao_card}) (ID: {id_estoque})")
-                    return {
-                        'id_estoque': id_estoque,
-                        'numero': numero,
-                        'colecao': colecao,
-                        'preco': '0.00',
-                        'quantidade': '1'
-                    }
-        
-        print(f"DEBUG - Carta não encontrada na pasta")
-        return None
+                    # Acessar página do produto para pegar ID do estoque
+                    prod_resp = self.scraper.get(f'https://mypcards.com/pokemon/produto/{idproduto}')
+                    soup = BeautifulSoup(prod_resp.text, 'html.parser')
+                    
+                    # Procurar link de edição no estoque do usuário
+                    edit_link = soup.find('a', href=lambda x: x and '/estoque/update/' in x)
+                    if edit_link:
+                        href = edit_link['href']
+                        id_estoque = href.split('/estoque/update/')[1].split('?')[0]
+                        print(f"DEBUG - ID do estoque encontrado: {id_estoque}")
+                        
+                        return {
+                            'id_estoque': id_estoque,
+                            'numero': numero,
+                            'colecao': colecao,
+                            'preco': '0.00',
+                            'quantidade': '1'
+                        }
+            
+            print(f"DEBUG - Carta não encontrada na pasta")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Erro ao buscar carta: {e}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
+            return None
     
     def delete_card(self, id_estoque):
         """Exclui carta usando endpoint direto"""
