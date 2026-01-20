@@ -18,6 +18,7 @@ class MypService:
         self.session_file = 'session.json'
         self._csrf_token = None
         self._csrf_timestamp = 0
+        self.username_url = None
     
     # Auth methods
     def get_session(self):
@@ -91,7 +92,14 @@ class MypService:
         print(f"DEBUG - URL após login: {resp.url}")
         print(f"DEBUG - Response text (primeiros 200 chars): {resp.text[:200]}")
         
-        if 'pokemon' in resp.url or 'aocarmo' in resp.url:
+        # Extrair username da URL (formato: https://mypcards.com/USERNAME/pokemon)
+        if 'pokemon' in resp.url and '/site/login' not in resp.url:
+            # Extrair username da URL
+            url_parts = resp.url.split('/')
+            if len(url_parts) >= 4:
+                self.username_url = url_parts[3]
+                print(f"DEBUG - Username extraído da URL: {self.username_url}")
+            
             self.save_session(scraper.cookies)
             return True
         return False
@@ -111,7 +119,8 @@ class MypService:
             return self._csrf_token
         
         # Busca novo token
-        resp = self.scraper.get('https://mypcards.com/aocarmo')
+        username = self.username_url or 'aocarmo'
+        resp = self.scraper.get(f'https://mypcards.com/{username}')
         soup = BeautifulSoup(resp.text, 'html.parser')
         csrf_meta = soup.find('meta', {'name': 'csrf-token'})
         
