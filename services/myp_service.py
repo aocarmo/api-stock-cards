@@ -230,6 +230,8 @@ class MypService:
                         idioma_td = row.find('td', class_='estoque-lista-qualidadenome')
                         idioma_text = idioma_td.get_text(strip=True).lower() if idioma_td else ''
                         
+                        print(f"DEBUG - Row: tipo_text='{tipo_text}' | idioma_text='{idioma_text}'")
+                        
                         # Mapear tipos
                         tipo_match = False
                         if tipo == 'normal' and not tipo_text:
