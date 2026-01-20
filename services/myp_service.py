@@ -248,12 +248,20 @@ class MypService:
         """Atualiza carta"""
         print(f"DEBUG - Atualizando carta {id_estoque} | Preço: {preco} | Qtd: {quantidade}")
         
-        resp = self.scraper.get(f'https://mypcards.com/estoque/update/{id_estoque}')
+        username = self.username_url or 'pokemon'
+        url = f'https://mypcards.com/{username}/estoque/update/{id_estoque}'
+        print(f"DEBUG - URL de atualização: {url}")
+        
+        resp = self.scraper.get(url)
+        print(f"DEBUG - Status da página: {resp.status_code}")
+        print(f"DEBUG - URL final: {resp.url}")
+        
         soup = BeautifulSoup(resp.text, 'html.parser')
         
         form = soup.find('form', {'id': 'estoque-form'})
         if not form:
             print(f"❌ Formulário não encontrado para id_estoque: {id_estoque}")
+            print(f"DEBUG - HTML (primeiros 500 chars): {resp.text[:500]}")
             return False
             
         csrf = soup.find('meta', {'name': 'csrf-token'})['content']
@@ -272,7 +280,7 @@ class MypService:
         
         print(f"DEBUG - Enviando atualização: Qtd={data['Estoque[quantidadeestoque]']}, Preço={data['Estoque[precoestoque]']}")
         
-        resp = self.scraper.post(f'https://mypcards.com/estoque/update/{id_estoque}', data=data)
+        resp = self.scraper.post(url, data=data)
         success = resp.status_code == 200 or 'estoque/update' in resp.url
         
         print(f"DEBUG - Atualização {'bem-sucedida' if success else 'falhou'} | Status: {resp.status_code}")
