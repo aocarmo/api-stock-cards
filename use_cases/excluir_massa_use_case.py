@@ -1,8 +1,8 @@
-from services.myp_service import MYPService
+from services.myp_service import MypService
 
 class ExcluirMassaUseCase:
     def __init__(self):
-        self.service = MYPService()
+        self.service = MypService()
     
     def execute(self, cartas):
         """Exclui cartas em massa"""
