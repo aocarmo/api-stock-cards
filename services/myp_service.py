@@ -299,13 +299,17 @@ class MypService:
             return False
             
         url = f'https://mypcards.com/{username}/estoque/update/{id_estoque}'
+        print(f"DEBUG - URL de atualização: {url}")
         
         resp = self.scraper.get(url)
+        print(f"DEBUG - Status: {resp.status_code}, URL final: {resp.url}")
+        
         soup = BeautifulSoup(resp.text, 'html.parser')
         
         form = soup.find('form', {'id': 'estoque-form'})
         if not form:
             print(f"❌ Formulário não encontrado para id_estoque: {id_estoque}")
+            print(f"DEBUG - HTML (primeiros 500 chars): {resp.text[:500]}")
             return False
             
         csrf = soup.find('meta', {'name': 'csrf-token'})['content']
