@@ -201,6 +201,10 @@ class MypService:
             print(f"DEBUG - Produtos encontrados na API: {len(produtos)}")
             
             for produto in produtos:
+                # Ignorar se não for um dicionário
+                if not isinstance(produto, dict):
+                    continue
+                    
                 nome = produto.get('nomeenproduto', '')
                 print(f"DEBUG - Produto: {nome}")
                 
