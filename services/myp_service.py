@@ -194,7 +194,11 @@ class MypService:
             return None
         
         # Buscar na página da pasta
-        resp = self.scraper.get(f'https://mypcards.com/{username}')
+        url = f'https://mypcards.com/{username}'
+        print(f"DEBUG - Acessando pasta: {url}")
+        resp = self.scraper.get(url)
+        print(f"DEBUG - Status: {resp.status_code}, URL final: {resp.url}")
+        
         soup = BeautifulSoup(resp.text, 'html.parser')
         
         # Procurar por cards (li.stream-item)
