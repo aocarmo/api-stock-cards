@@ -178,17 +178,18 @@ class MypService:
             
             for produto in produtos:
                 nome = produto.get('nomeenproduto', '')
+                print(f"DEBUG - Produto retornado: {produto}")
                 # Extrair coleção do nome (formato: "Nome COLECAO numero/total")
                 if f" {colecao.upper()} " in nome.upper():
                     # TODO: Implementar filtros de tipo e idioma se necessário
                     # Por enquanto retorna a primeira que bater a coleção
                     print(f"DEBUG - Carta encontrada na pasta: {nome}")
                     return {
-                        'id_estoque': produto['idproduto'],  # Usar idproduto como id_estoque temporário
+                        'id_estoque': produto.get('id') or produto.get('idestoque') or produto['idproduto'],
                         'numero': numero,
                         'colecao': colecao,
-                        'preco': '0.00',  # Valor padrão
-                        'quantidade': '1'  # Valor padrão
+                        'preco': produto.get('preco', '0.00'),
+                        'quantidade': produto.get('quantidade', '1')
                     }
             
             print(f"DEBUG - Carta não encontrada na pasta")
