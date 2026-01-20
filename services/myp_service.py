@@ -293,12 +293,7 @@ class MypService:
     
     def update_card(self, id_estoque, preco=None, quantidade=None):
         """Atualiza carta"""
-        username = self.username_url
-        if not username:
-            print("❌ Username não disponível")
-            return False
-            
-        url = f'https://mypcards.com/{username}/estoque/update/{id_estoque}'
+        url = f'https://mypcards.com/estoque/update/{id_estoque}'
         print(f"DEBUG - URL de atualização: {url}")
         
         resp = self.scraper.get(url)
@@ -309,7 +304,6 @@ class MypService:
         form = soup.find('form', {'id': 'estoque-form'})
         if not form:
             print(f"❌ Formulário não encontrado para id_estoque: {id_estoque}")
-            print(f"DEBUG - HTML (primeiros 500 chars): {resp.text[:500]}")
             return False
             
         csrf = soup.find('meta', {'name': 'csrf-token'})['content']
