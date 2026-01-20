@@ -90,34 +90,37 @@ class MypService:
         
         print(f"DEBUG - Status code: {resp.status_code}")
         print(f"DEBUG - URL após login: {resp.url}")
-        print(f"DEBUG - Response text (primeiros 200 chars): {resp.text[:200]}")
-        print(f"DEBUG - Cookies: {dict(scraper.cookies)}")
-        print(f"DEBUG - Headers: {dict(resp.headers)}")
         
-        # Extrair username da URL (formato: https://mypcards.com/USERNAME/pokemon)
-        if 'pokemon' in resp.url and '/site/login' not in resp.url:
-            # Extrair username da URL
-            url_parts = resp.url.split('/')
-            if len(url_parts) >= 4:
-                self.username_url = url_parts[3]  # USERNAME (ex: Mavipoke)
-                print(f"DEBUG - Username extraído da URL: {self.username_url}")
-            
-            self.save_session(scraper.cookies)
-            return True
-        
-        # Se não redirecionou, tentar extrair do HTML
+        # Parse HTML para extrair username
         soup = BeautifulSoup(resp.text, 'html.parser')
         
-        # Tentar pegar do link "Minha Pasta"
-        pasta_link = soup.find('a', string=lambda x: x and 'Minha Pasta' in x)
-        if pasta_link and pasta_link.get('href'):
-            username = pasta_link['href'].strip('/')
-            if username:
+        # Tentar pegar do link "Minha Pasta" ou similar
+        # Formato: <a href="/Mavipoke">Minha Pasta</a>
+        for link in soup.find_all('a', href=True):
+            href = link.get('href', '')
+            text = link.get_text(strip=True)
+            
+            # Procurar por links que levam à pasta do usuário
+            if 'Minha Pasta' in text or 'pasta' in text.lower():
+                username = href.strip('/')
+                if username and '/' not in username:
+                    self.username_url = username
+                    print(f"DEBUG - Username extraído do link '{text}': {self.username_url}")
+                    self.save_session(scraper.cookies)
+                    return True
+        
+        # Se não encontrou pelo link, tentar pelo canonical
+        canonical = soup.find('link', {'rel': 'canonical'})
+        if canonical and canonical.get('href'):
+            # Formato: <link href="/Mavipoke" rel="canonical">
+            username = canonical['href'].strip('/').split('/')[0]
+            if username and username != 'pokemon':
                 self.username_url = username
-                print(f"DEBUG - Username extraído do link Minha Pasta: {self.username_url}")
+                print(f"DEBUG - Username extraído do canonical: {self.username_url}")
                 self.save_session(scraper.cookies)
                 return True
         
+        print("❌ Não foi possível extrair username")
         return False
     
     def init_scraper(self, cookies):
