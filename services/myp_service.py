@@ -210,6 +210,7 @@ class MypService:
                 continue
             
             nome = h3.get_text(strip=True)
+            print(f"DEBUG - Card na pasta: {nome}")
             
             # Verificar se bate número e coleção
             if numero in nome and colecao.upper() in nome.upper():
