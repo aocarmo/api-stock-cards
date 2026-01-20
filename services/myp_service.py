@@ -218,39 +218,73 @@ class MypService:
                     prod_resp = self.scraper.get(f'https://mypcards.com/pokemon/produto/{idproduto}')
                     soup = BeautifulSoup(prod_resp.text, 'html.parser')
                     
-                    # Procurar link de edição no estoque do usuário
-                    edit_link = soup.find('a', href=lambda x: x and '/estoque/update/' in x)
-                    if edit_link:
-                        href = edit_link['href']
-                        id_estoque = href.split('/estoque/update/')[1].split('?')[0]
+                    # Procurar todas as linhas da tabela de estoque
+                    estoque_rows = soup.find_all('tr', {'data-key': True})
+                    
+                    for row in estoque_rows:
+                        # Verificar tipo (foil)
+                        tipo_td = row.find('td', class_='estoque-lista-nomeenfoil')
+                        tipo_text = tipo_td.get_text(strip=True).lower() if tipo_td else ''
                         
-                        # Extrair quantidade e preço da tabela
-                        # Formato: <td class="estoque-lista-quantidadeestoque">3 un.</td>
-                        qtd_td = soup.find('td', class_='estoque-lista-quantidadeestoque')
-                        quantidade_atual = '1'
-                        if qtd_td:
-                            qtd_text = qtd_td.get_text(strip=True)
-                            quantidade_atual = qtd_text.split()[0]  # Pega só o número antes de "un."
+                        # Verificar idioma
+                        idioma_td = row.find('td', class_='estoque-lista-qualidadenome')
+                        idioma_text = idioma_td.get_text(strip=True).lower() if idioma_td else ''
                         
-                        # Formato: <td class="estoque-lista-precoestoque"><span class="moeda">R$ 0,99</span></td>
-                        preco_td = soup.find('td', class_='estoque-lista-precoestoque')
-                        preco_atual = '0.00'
-                        if preco_td:
-                            preco_span = preco_td.find('span', class_='moeda')
-                            if preco_span:
-                                preco_text = preco_span.get_text(strip=True)
-                                # Remove "R$" e espaços, troca vírgula por ponto
-                                preco_atual = preco_text.replace('R$', '').replace(' ', '').replace(',', '.')
+                        # Mapear tipos
+                        tipo_match = False
+                        if tipo == 'normal' and not tipo_text:
+                            tipo_match = True
+                        elif tipo == 'foil' and 'foil' in tipo_text and 'reverse' not in tipo_text:
+                            tipo_match = True
+                        elif tipo == 'reverse-foil' and 'reverse' in tipo_text:
+                            tipo_match = True
+                        elif tipo.lower() in tipo_text:
+                            tipo_match = True
                         
-                        print(f"DEBUG - ID do estoque encontrado: {id_estoque} | Qtd atual: {quantidade_atual} | Preço atual: {preco_atual}")
+                        # Mapear idiomas
+                        idioma_match = False
+                        if idioma == 'portugues' and 'português' in idioma_text:
+                            idioma_match = True
+                        elif idioma == 'ingles' and 'inglês' in idioma_text:
+                            idioma_match = True
+                        elif idioma == 'espanhol' and 'espanhol' in idioma_text:
+                            idioma_match = True
                         
-                        return {
-                            'id_estoque': id_estoque,
-                            'numero': numero,
-                            'colecao': colecao,
-                            'preco': preco_atual,
-                            'quantidade': quantidade_atual
-                        }
+                        # Se bater tipo e idioma, pegar esse estoque
+                        if tipo_match and idioma_match:
+                            # Pegar link de edição
+                            edit_link = row.find('a', href=lambda x: x and '/estoque/update/' in x)
+                            if edit_link:
+                                href = edit_link['href']
+                                id_estoque = href.split('/estoque/update/')[1].split('?')[0]
+                                
+                                # Extrair quantidade
+                                qtd_td = row.find('td', class_='estoque-lista-quantidadeestoque')
+                                quantidade_atual = '1'
+                                if qtd_td:
+                                    qtd_text = qtd_td.get_text(strip=True)
+                                    quantidade_atual = qtd_text.split()[0]
+                                
+                                # Extrair preço
+                                preco_td = row.find('td', class_='estoque-lista-precoestoque')
+                                preco_atual = '0.00'
+                                if preco_td:
+                                    preco_span = preco_td.find('span', class_='moeda')
+                                    if preco_span:
+                                        preco_text = preco_span.get_text(strip=True)
+                                        preco_atual = preco_text.replace('R$', '').replace(' ', '').replace(',', '.')
+                                
+                                print(f"DEBUG - Estoque encontrado: {id_estoque} | Tipo: {tipo_text or 'normal'} | Idioma: {idioma_text} | Qtd: {quantidade_atual} | Preço: {preco_atual}")
+                                
+                                return {
+                                    'id_estoque': id_estoque,
+                                    'numero': numero,
+                                    'colecao': colecao,
+                                    'preco': preco_atual,
+                                    'quantidade': quantidade_atual
+                                }
+                    
+                    print(f"DEBUG - Nenhum estoque encontrado com tipo '{tipo}' e idioma '{idioma}'")
             
             print(f"DEBUG - Carta não encontrada na pasta")
             return None
