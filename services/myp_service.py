@@ -22,9 +22,14 @@ class MypService:
     
     # Auth methods
     def get_session(self):
-        """Recupera cookies salvos"""
+        """Recupera cookies e username salvos"""
         with open(self.session_file, 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+            # Compatibilidade com formato antigo (só cookies)
+            if isinstance(data, dict) and 'cookies' in data:
+                self.username_url = data.get('username')
+                return data['cookies']
+            return data
     
     def get_user_id(self):
         """Extrai ID do usuário do cookie _identity"""
@@ -55,9 +60,12 @@ class MypService:
             return None
     
     def save_session(self, cookies):
-        """Salva cookies"""
+        """Salva cookies e username"""
         with open(self.session_file, 'w') as f:
-            json.dump(dict(cookies), f)
+            json.dump({
+                'cookies': dict(cookies),
+                'username': self.username_url
+            }, f)
     
     def login(self):
         """Faz login e salva sessão"""
