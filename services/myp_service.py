@@ -246,10 +246,16 @@ class MypService:
     
     def update_card(self, id_estoque, preco=None, quantidade=None):
         """Atualiza carta"""
+        print(f"DEBUG - Atualizando carta {id_estoque} | Preço: {preco} | Qtd: {quantidade}")
+        
         resp = self.scraper.get(f'https://mypcards.com/estoque/update/{id_estoque}')
         soup = BeautifulSoup(resp.text, 'html.parser')
         
         form = soup.find('form', {'id': 'estoque-form'})
+        if not form:
+            print(f"❌ Formulário não encontrado para id_estoque: {id_estoque}")
+            return False
+            
         csrf = soup.find('meta', {'name': 'csrf-token'})['content']
         
         data = {
@@ -264,8 +270,14 @@ class MypService:
             'Estoque[precoestoque]': preco or form.find('input', {'id': 'estoque-precoestoque'})['value']
         }
         
+        print(f"DEBUG - Enviando atualização: Qtd={data['Estoque[quantidadeestoque]']}, Preço={data['Estoque[precoestoque]']}")
+        
         resp = self.scraper.post(f'https://mypcards.com/estoque/update/{id_estoque}', data=data)
-        return resp.status_code == 200 or 'estoque/update' in resp.url
+        success = resp.status_code == 200 or 'estoque/update' in resp.url
+        
+        print(f"DEBUG - Atualização {'bem-sucedida' if success else 'falhou'} | Status: {resp.status_code}")
+        
+        return success
     
     # Private methods
     def _get_card_details(self, id_estoque):
