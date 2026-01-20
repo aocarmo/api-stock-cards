@@ -208,27 +208,32 @@ class MypService:
         print(f"DEBUG - Cards encontrados na pasta: {len(cards)}")
         
         for card in cards:
-            # Pegar o nome da carta
+            # Pegar o nome da carta (h3)
             h3 = card.find('h3')
             if not h3:
                 continue
             
             nome = h3.get_text(strip=True)
-            print(f"DEBUG - Card na pasta: {nome}")
+            
+            # Pegar a coleção (span.card-edicao)
+            edicao_span = card.find('span', class_='card-edicao')
+            colecao_card = edicao_span.get_text(strip=True) if edicao_span else ''
+            
+            print(f"DEBUG - Card na pasta: {nome} | Coleção: {colecao_card}")
             
             # Verificar se bate número e coleção
-            if numero in nome and colecao.upper() in nome.upper():
+            if numero in nome and colecao.upper() == colecao_card.upper():
                 # Pegar link de atualização
                 link = card.find('a', href=lambda x: x and 'estoque/update' in x)
                 if link:
-                    # Extrair ID do href (/estoque/update/XXXXX ou /estoque/update?id=XXXXX)
+                    # Extrair ID do href (/estoque/update/XXXXX)
                     href = link['href']
                     if '?id=' in href:
                         id_estoque = href.split('?id=')[1].split('&')[0]
                     else:
                         id_estoque = href.split('/estoque/update/')[1].split('?')[0]
                     
-                    print(f"DEBUG - Carta encontrada na pasta: {nome} (ID: {id_estoque})")
+                    print(f"DEBUG - Carta encontrada na pasta: {nome} ({colecao_card}) (ID: {id_estoque})")
                     return {
                         'id_estoque': id_estoque,
                         'numero': numero,
