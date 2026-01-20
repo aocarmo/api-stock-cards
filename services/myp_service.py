@@ -247,7 +247,7 @@ class MypService:
     def update_card(self, id_estoque, preco=None, quantidade=None):
         """Atualiza carta"""
         username = self.username_url or 'pokemon'
-        url = f'https://mypcards.com/{username}/estoque/update/{id_estoque}'
+        url = f'https://mypcards.com/{username}/estoque/update?id={id_estoque}'
         
         resp = self.scraper.get(url)
         soup = BeautifulSoup(resp.text, 'html.parser')
