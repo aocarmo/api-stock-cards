@@ -97,7 +97,7 @@ class MypService:
             # Extrair username da URL
             url_parts = resp.url.split('/')
             if len(url_parts) >= 4:
-                self.username_url = url_parts[3]
+                self.username_url = url_parts[3]  # USERNAME (ex: Mavipoke)
                 print(f"DEBUG - Username extraído da URL: {self.username_url}")
             
             self.save_session(scraper.cookies)
@@ -119,7 +119,11 @@ class MypService:
             return self._csrf_token
         
         # Busca novo token
-        username = self.username_url or 'aocarmo'
+        username = self.username_url
+        if not username:
+            print("❌ Username não disponível para buscar CSRF")
+            return None
+            
         resp = self.scraper.get(f'https://mypcards.com/{username}')
         soup = BeautifulSoup(resp.text, 'html.parser')
         csrf_meta = soup.find('meta', {'name': 'csrf-token'})
@@ -160,14 +164,18 @@ class MypService:
     
     def search_card(self, numero, colecao, tipo="", idioma=""):
         """Busca carta na pasta do usuário"""
-        username = self.username_url or 'pokemon'
+        username = self.username_url
+        if not username:
+            print("❌ Username não disponível")
+            return None
+        
         user_id = self.get_user_id()
         if not user_id:
             print("❌ Não foi possível obter ID do usuário")
             return None
         
         # Buscar na página da pasta
-        resp = self.scraper.get(f'https://mypcards.com/{username}/pasta')
+        resp = self.scraper.get(f'https://mypcards.com/{username}')
         soup = BeautifulSoup(resp.text, 'html.parser')
         
         # Procurar por cards (li.stream-item)
@@ -256,7 +264,11 @@ class MypService:
     
     def update_card(self, id_estoque, preco=None, quantidade=None):
         """Atualiza carta"""
-        username = self.username_url or 'pokemon'
+        username = self.username_url
+        if not username:
+            print("❌ Username não disponível")
+            return False
+            
         url = f'https://mypcards.com/{username}/estoque/update/{id_estoque}'
         
         resp = self.scraper.get(url)
