@@ -48,6 +48,8 @@ def lambda_handler(event, context):
             # Registrar erro no DynamoDB
             if 'file_id' in locals() and 'chunk_id' in locals():
                 register_chunk_error(file_id, chunk_id, str(e), lines)
+                # Incrementar contador mesmo com erro para não travar o arquivo
+                update_file_progress(file_id, chunk_id, [])
     
     return {
         'statusCode': 200,
