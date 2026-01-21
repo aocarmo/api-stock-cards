@@ -6,6 +6,16 @@ class ExcluirMassaUseCase:
     
     def execute(self, cartas):
         """Exclui cartas em massa"""
+        # Autenticação
+        try:
+            cookies = self.service.get_session()
+        except:
+            if not self.service.login():
+                raise Exception("Erro no login")
+            cookies = self.service.get_session()
+        
+        self.service.init_scraper(cookies)
+        
         resultados = []
         
         for carta in cartas:
