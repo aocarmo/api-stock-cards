@@ -11,6 +11,7 @@ from dtos.card_dtos import RecadastrarRequestDTO, AtualizarRequestDTO, ResponseD
 from use_cases.recadastrar_use_case import RecadastrarUseCase
 from use_cases.atualizar_use_case import AtualizarUseCase
 from use_cases.excluir_massa_use_case import ExcluirMassaUseCase
+from use_cases.recadastrar_massa_use_case import RecadastrarMassaUseCase
 
 router = APIRouter(prefix="/api/v1", tags=["Cards"])
 
@@ -108,6 +109,57 @@ async def atualizar_cartas(request: AtualizarRequestDTO) -> ResponseDTO:
         return ResponseDTO(resultados=resultados)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na atualização: {str(e)}")
+
+@router.post(
+    "/recadastrar-massa",
+    response_model=ResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Recadastrar cartas em massa",
+    description="""
+    Exclui e recadastra cartas (mesmo comportamento do atualizar, mas com exclusão antes).
+    
+    **Processo:**
+    1. Busca a carta por número + coleção + tipo + idioma
+    2. Exclui a carta encontrada
+    3. Recadastra com os valores atualizados
+    
+    **Comportamento:**
+    - **Preço:** Substitui o valor atual
+    - **Quantidade:** Incrementa (soma com a quantidade atual)
+    
+    **Delay:** 2 segundos entre cada operação.
+    """,
+    responses={
+        200: {
+            "description": "Cartas processadas",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "resultados": [
+                            {
+                                "numero": "077/131",
+                                "colecao": "SVI",
+                                "tipo": "normal",
+                                "idioma": "ingles",
+                                "status": "ok",
+                                "preco": "150.00",
+                                "quantidade": "5"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+)
+async def recadastrar_massa_cartas(request: AtualizarRequestDTO) -> ResponseDTO:
+    try:
+        use_case = RecadastrarMassaUseCase()
+        cartas_dict = [carta.dict() for carta in request.cartas]
+        resultados = use_case.execute(cartas_dict)
+        return ResponseDTO(resultados=resultados)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no recadastro em massa: {str(e)}")
 
 @router.post(
     "/excluir",
