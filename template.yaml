@@ -66,29 +66,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: csv-uploads/
-            Function: !GetAtt ProducerFunction.Arn
-          - Event: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: csv-excluir/
-            Function: !GetAtt ProducerFunction.Arn
-          - Event: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: csv-recadastrar/
-            Function: !GetAtt ProducerFunction.Arn
 
   # SQS Queue
   ProcessingQueue:
