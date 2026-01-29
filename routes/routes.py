@@ -6,7 +6,7 @@ import csv
 import io
 import os
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
 from dtos.card_dtos import RecadastrarRequestDTO, AtualizarRequestDTO, ResponseDTO, CsvUploadResponseDTO, FileStatusDTO
 from use_cases.recadastrar_use_case import RecadastrarUseCase
 from use_cases.atualizar_use_case import AtualizarUseCase
@@ -250,7 +250,10 @@ async def excluir_cartas(request: RecadastrarRequestDTO) -> ResponseDTO:
         429: {"description": "Já existe um arquivo sendo processado"}
     }
 )
-async def upload_csv(file: UploadFile = File(..., description="Arquivo CSV com as cartas")) -> CsvUploadResponseDTO:
+async def upload_csv(
+    file: UploadFile = File(..., description="Arquivo CSV com as cartas"),
+    operation: str = Form("update", description="Operação: update, delete ou recadastrar")
+) -> CsvUploadResponseDTO:
     try:
         # Validar extensão
         if not file.filename.endswith('.csv'):
