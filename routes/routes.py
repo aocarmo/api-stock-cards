@@ -276,7 +276,16 @@ async def upload_csv(file: UploadFile = File(..., description="Arquivo CSV com a
         # Gerar nome com timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         file_id = f"file_{timestamp}"
-        s3_key = f"csv-uploads/{timestamp}_{file.filename}"
+        
+        # Definir prefixo baseado na operação
+        if operation == "delete":
+            prefix = "csv-excluir"
+        elif operation == "recadastrar":
+            prefix = "csv-recadastrar"
+        else:
+            prefix = "csv-uploads"
+            
+        s3_key = f"{prefix}/{timestamp}_{file.filename}"
         
         # Upload para S3
         s3 = boto3.client('s3')

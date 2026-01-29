@@ -51,6 +51,22 @@ Resources:
                   - logs:*
                 Resource: '*'
 
+  # Lambda para scraping de inventário
+  InventoryScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-inventory-scraper-${Environment}
+      CodeUri: .
+      Handler: lambda_scrape_inventory.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        ScheduleEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Description: "Scraping diário do inventário"
+            Enabled: true
+
   # API Gateway
   ApiGateway:
     Type: AWS::Serverless::Api
@@ -72,6 +88,15 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub queue-${ProjectName}-processing-${Environment}
+      VisibilityTimeout: 900
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+
+  # SQS Queue para Precificação Diária
+  PricingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub queue-${ProjectName}-pricing-${Environment}
       VisibilityTimeout: 900
       MessageRetentionPeriod: 1209600
       ReceiveMessageWaitTimeSeconds: 20

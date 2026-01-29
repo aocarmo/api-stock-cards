@@ -204,3 +204,7 @@ Projeto pessoal - Uso privado
 ## 👤 Autor
 
 Alex Carmo - alex.carmo91@gmail.com
+
+ update-myp % curl -X POST https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/upload-csv \
+  -F "file=@/Users/alex/Documents/projetos/pessoais/update-myp/exemplo.csv" \
+  -F "operation=recadastrar"

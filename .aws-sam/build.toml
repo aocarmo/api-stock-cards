@@ -7,7 +7,7 @@ architecture = "x86_64"
 handler = "lambdas.api_handler.handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["ApiFunction", "ConsumerFunction"]
+functions = ["InventoryScraperFunction", "ApiFunction", "ConsumerFunction"]
 
 [function_build_definitions.aed13136-43ca-423a-afe8-95ffb505ccf3]
 codeuri = "/Users/alex/Documents/projetos/pessoais/update-myp/lambdas"

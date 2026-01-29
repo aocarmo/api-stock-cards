@@ -402,6 +402,124 @@ class MypService:
         resp = self.scraper.post(url, data=data)
         return resp.status_code == 200 or 'estoque/update' in resp.url
     
+    def scrape_inventory(self, price_ranges=None):
+        """Scraping completo do inventário com paginação e filtros de preço"""
+        if not self.username_url:
+            print("❌ Username não disponível")
+            return []
+        
+        # Ranges padrão se não especificado
+        if not price_ranges:
+            price_ranges = [
+                (0, 10),
+                (10, 50), 
+                (50, 100),
+                (100, 500),
+                (500, 9999)
+            ]
+        
+        all_cards = []
+        
+        for min_price, max_price in price_ranges:
+            print(f"Scraping faixa R${min_price} - R${max_price}...")
+            page = 1
+            
+            while True:
+                params = {
+                    'PastaSearch[precoMinimo]': f'{min_price:.2f}',
+                    'PastaSearch[precoMaximo]': f'{max_price}',
+                    'sort': 'precoestoque',
+                    'page': page
+                }
+                
+                url = f'https://mypcards.com/{self.username_url}/pokemon'
+                resp = self.scraper.get(url, params=params)
+                
+                if resp.status_code != 200:
+                    break
+                
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                cards = soup.find_all('div', class_='col-md-3')
+                
+                if not cards:
+                    break
+                
+                for card in cards:
+                    try:
+                        # Nome da carta
+                        nome_elem = card.find('h5', class_='card-title')
+                        nome = nome_elem.text.strip() if nome_elem else ''
+                        
+                        # Extrair número e coleção do nome
+                        numero = ''
+                        colecao = ''
+                        if nome:
+                            parts = nome.split()
+                            for i, part in enumerate(parts):
+                                if '/' in part and any(c.isdigit() for c in part):
+                                    numero = part
+                                    if i > 0:
+                                        colecao = parts[i-1]
+                                    break
+                        
+                        # Tipo (foil)
+                        tipo_elem = card.find('span', class_='badge')
+                        tipo = 'normal'
+                        if tipo_elem:
+                            tipo_text = tipo_elem.text.strip().lower()
+                            if 'reverse' in tipo_text:
+                                tipo = 'reverse-foil'
+                            elif 'foil' in tipo_text:
+                                tipo = 'foil'
+                        
+                        # Idioma (flag)
+                        idioma = 'portugues'
+                        flag_elem = card.find('span', class_='flag-icon')
+                        if flag_elem and flag_elem.get('title'):
+                            idioma_map = {
+                                'português': 'portugues',
+                                'inglês': 'ingles',
+                                'espanhol': 'espanhol',
+                                'francês': 'frances',
+                                'alemão': 'alemao',
+                                'italiano': 'italiano',
+                                'japonês': 'japones',
+                                'coreano': 'coreano'
+                            }
+                            idioma = idioma_map.get(flag_elem['title'].lower(), 'portugues')
+                        
+                        # Preço
+                        preco_elem = card.find('span', class_='moeda')
+                        preco = '0.00'
+                        if preco_elem:
+                            preco = preco_elem.text.replace('R$', '').replace(' ', '').replace(',', '.')
+                        
+                        # Quantidade
+                        qtd_elem = card.find('span', string=lambda x: x and 'Qtd:' in x)
+                        quantidade = '1'
+                        if qtd_elem:
+                            quantidade = qtd_elem.text.replace('Qtd:', '').strip()
+                        
+                        if numero and colecao:
+                            all_cards.append({
+                                'numero': numero,
+                                'colecao': colecao,
+                                'tipo': tipo,
+                                'idioma': idioma,
+                                'preco': preco,
+                                'quantidade': quantidade
+                            })
+                    
+                    except Exception as e:
+                        print(f"Erro ao processar carta: {e}")
+                        continue
+                
+                page += 1
+                import time
+                time.sleep(0.5)
+        
+        return all_cards
+
     # Private methods
     def _get_card_details(self, id_estoque):
         """Pega dados completos da carta"""
