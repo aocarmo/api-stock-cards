@@ -395,6 +395,103 @@ async def upload_csv_excluir(file: UploadFile = File(..., description="Arquivo C
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no upload: {str(e)}")
 
+@router.post(
+    "/upload-csv-recadastrar",
+    response_model=CsvUploadResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Upload CSV para recadastrar em massa",
+    description="""
+    Faz upload de arquivo CSV para recadastro em massa (exclui e cria).
+    
+    **Fluxo:**
+    1. Valida formato do CSV
+    2. Salva no S3 (pasta csv-recadastrar/)
+    3. Dispara Lambda Producer
+    4. Producer quebra em chunks de 50 linhas
+    5. Envia chunks para SQS
+    6. 50 Lambdas Consumer processam simultaneamente
+    
+    **Comportamento:**
+    - **Preço:** Substitui o valor atual
+    - **Quantidade:** Incrementa (soma com a quantidade atual)
+    - Se não existir, busca produto e cria
+    
+    **Formato CSV obrigatório:**
+    ```
+    numero,colecao,tipo,idioma,preco,quantidade
+    161/131,PRE,normal,portugues,2500.00,5
+    077/131,SVI,foil,ingles,150.00,2
+    ```
+    """,
+    responses={
+        200: {
+            "description": "CSV enviado com sucesso",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "CSV enviado com sucesso. Recadastro iniciado.",
+                        "file_id": "file_20260118_200500",
+                        "s3_key": "csv-recadastrar/20260118_200500_exemplo.csv",
+                        "total_linhas": 100
+                    }
+                }
+            }
+        },
+        400: {"description": "CSV inválido ou campos faltando"}
+    }
+)
+async def upload_csv_recadastrar(file: UploadFile = File(..., description="Arquivo CSV com as cartas para recadastrar")) -> CsvUploadResponseDTO:
+    try:
+        # Validar extensão
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Arquivo deve ser CSV")
+        
+        # Ler conteúdo
+        content = await file.read()
+        
+        # Validar CSV
+        csv_reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
+        required_fields = ['numero', 'colecao', 'tipo', 'idioma', 'preco', 'quantidade']
+        
+        if not all(field in csv_reader.fieldnames for field in required_fields):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"CSV deve conter os campos: {', '.join(required_fields)}"
+            )
+        
+        # Contar linhas
+        rows = list(csv_reader)
+        total_linhas = len(rows)
+        
+        # Gerar nome com timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_id = f"file_{timestamp}"
+        s3_key = f"csv-recadastrar/{timestamp}_{file.filename}"
+        
+        # Upload para S3
+        s3 = boto3.client('s3')
+        bucket_name = os.getenv('S3_BUCKET', 'myp-cards-csv')
+        
+        s3.put_object(
+            Bucket=bucket_name,
+            Key=s3_key,
+            Body=content,
+            ContentType='text/csv',
+            Metadata={'operation': 'recadastrar'}
+        )
+        
+        return CsvUploadResponseDTO(
+            message="CSV enviado com sucesso. Recadastro iniciado.",
+            file_id=file_id,
+            s3_key=s3_key,
+            total_linhas=total_linhas
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no upload: {str(e)}")
+
 @router.get(
     "/status/{file_id}",
     response_model=FileStatusDTO,

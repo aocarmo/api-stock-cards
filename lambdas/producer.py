@@ -40,8 +40,13 @@ def lambda_handler(event, context):
         bucket = event['Records'][0]['s3']['bucket']['name']
         key = event['Records'][0]['s3']['object']['key']
         
-        # Detectar operação (delete ou update)
-        operation = 'delete' if key.startswith('csv-excluir/') else 'update'
+        # Detectar operação (delete, recadastrar ou update)
+        if key.startswith('csv-excluir/'):
+            operation = 'delete'
+        elif key.startswith('csv-recadastrar/'):
+            operation = 'recadastrar'
+        else:
+            operation = 'update'
         print(f"🔧 Operação detectada: {operation}")
         
         print(f"📥 Processando CSV: s3://{bucket}/{key}")

@@ -19,6 +19,7 @@ def lambda_handler(event, context):
     """Processa mensagens do SQS"""
     from use_cases.atualizar_massa_use_case import AtualizarMassaUseCase
     from use_cases.excluir_massa_use_case import ExcluirMassaUseCase
+    from use_cases.recadastrar_massa_use_case import RecadastrarMassaUseCase
     
     total_processadas = 0
     
@@ -35,6 +36,8 @@ def lambda_handler(event, context):
             # Processar cartas
             if operation == 'delete':
                 use_case = ExcluirMassaUseCase()
+            elif operation == 'recadastrar':
+                use_case = RecadastrarMassaUseCase()
             else:
                 use_case = AtualizarMassaUseCase()
                 
@@ -43,6 +46,8 @@ def lambda_handler(event, context):
             # Separar erros
             if operation == 'delete':
                 erros = [r for r in resultados if r['status'] not in ['excluida', 'nao_encontrada']]
+            elif operation == 'recadastrar':
+                erros = [r for r in resultados if r['status'] not in ['ok', 'criada']]
             else:
                 erros = [r for r in resultados if r['status'] not in ['atualizada', 'criada']]
             
