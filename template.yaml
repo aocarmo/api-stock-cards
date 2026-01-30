@@ -19,8 +19,8 @@ Globals:
     Environment:
       Variables:
         DYNAMODB_TABLE: !Ref FilesTable
-        MYP_USERNAME: "17mariavitoria.argolo@gmail.com"
-        MYP_PASSWORD: "Mar0809."
+        MYP_USERNAME: "alex.carmo91@gmail.com"
+        MYP_PASSWORD: "Xela0704@!"
         CHUNK_SIZE: "50"
         S3_BUCKET: !Ref CsvBucket
 
