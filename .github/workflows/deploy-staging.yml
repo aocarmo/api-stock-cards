@@ -46,3 +46,52 @@ jobs:
             --config-env staging \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
+      
+      - name: Configure S3 Notification
+        run: |
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET_NAME="myp-cards-csv-staging-${AWS_ACCOUNT_ID}"
+          LAMBDA_ARN=$(aws lambda get-function --function-name myp-cards-producer-staging --query 'Configuration.FunctionArn' --output text)
+          
+          aws s3api put-bucket-notification-configuration \
+            --bucket $BUCKET_NAME \
+            --notification-configuration '{
+              "LambdaFunctionConfigurations": [
+                {
+                  "LambdaFunctionArn": "'$LAMBDA_ARN'",
+                  "Events": ["s3:ObjectCreated:*"],
+                  "Filter": {
+                    "Key": {
+                      "FilterRules": [
+                        {"Name": "prefix", "Value": "csv-uploads/"},
+                        {"Name": "suffix", "Value": ".csv"}
+                      ]
+                    }
+                  }
+                },
+                {
+                  "LambdaFunctionArn": "'$LAMBDA_ARN'",
+                  "Events": ["s3:ObjectCreated:*"],
+                  "Filter": {
+                    "Key": {
+                      "FilterRules": [
+                        {"Name": "prefix", "Value": "csv-excluir/"},
+                        {"Name": "suffix", "Value": ".csv"}
+                      ]
+                    }
+                  }
+                },
+                {
+                  "LambdaFunctionArn": "'$LAMBDA_ARN'",
+                  "Events": ["s3:ObjectCreated:*"],
+                  "Filter": {
+                    "Key": {
+                      "FilterRules": [
+                        {"Name": "prefix", "Value": "csv-recadastrar/"},
+                        {"Name": "suffix", "Value": ".csv"}
+                      ]
+                    }
+                  }
+                }
+              ]
+            }'
