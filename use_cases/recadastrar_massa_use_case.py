@@ -103,10 +103,10 @@ class RecadastrarMassaUseCase:
         
         for carta_pendente in cartas_pendentes:
             try:
-                print(f"DEBUG - Recadastrando: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente['tipo']}) ({carta_pendente.get('idioma_nome', '')})")
+                print(f"DEBUG - Recadastrando: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente.get('tipo', 'normal')}) ({carta_pendente.get('idioma_nome', '')})")
                 
                 if self.service.create_card(carta_pendente):
-                    print(f"✅ Carta recadastrada: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente['tipo']}) | Preço: {carta_pendente['preco']} | Qtd: {carta_pendente['quantidade']}")
+                    print(f"✅ Carta recadastrada: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente.get('tipo', 'normal')}) | Preço: {carta_pendente['preco']} | Qtd: {carta_pendente['quantidade']}")
                     
                     # Verificar se foi criação ou recadastro
                     status = 'criada' if 'id_estoque' not in carta_pendente else 'ok'
@@ -114,7 +114,7 @@ class RecadastrarMassaUseCase:
                     resultados.append({
                         'numero': carta_pendente['numero'],
                         'colecao': carta_pendente['colecao'],
-                        'tipo': carta_pendente['tipo'],
+                        'tipo': carta_pendente.get('tipo', 'normal'),
                         'idioma': carta_pendente.get('idioma_nome', ''),
                         'status': status,
                         'preco_novo': carta_pendente['preco'],
@@ -125,7 +125,7 @@ class RecadastrarMassaUseCase:
                     resultados.append({
                         'numero': carta_pendente['numero'],
                         'colecao': carta_pendente['colecao'],
-                        'tipo': carta_pendente['tipo'],
+                        'tipo': carta_pendente.get('tipo', 'normal'),
                         'idioma': carta_pendente.get('idioma_nome', ''),
                         'status': 'erro_cadastrar'
                     })
@@ -134,7 +134,7 @@ class RecadastrarMassaUseCase:
                 resultados.append({
                     'numero': carta_pendente['numero'],
                     'colecao': carta_pendente['colecao'],
-                    'tipo': carta_pendente['tipo'],
+                    'tipo': carta_pendente.get('tipo', 'normal'),
                     'idioma': carta_pendente.get('idioma_nome', ''),
                     'status': 'erro_cadastrar',
                     'erro': str(e)
