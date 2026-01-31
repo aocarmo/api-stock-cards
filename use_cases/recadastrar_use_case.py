@@ -42,7 +42,9 @@ class RecadastrarUseCase:
                     resultados.append({'numero': numero, 'colecao': colecao, 'tipo': tipo, 'idioma': idioma, 'status': 'nao_encontrada'})
                     continue
                 
-                # Salvar dados para recadastro
+                # Salvar dados para recadastro e preservar dados do CSV
+                card_data['tipo'] = tipo  # Preservar tipo do CSV
+                card_data['idioma_nome'] = idioma  # Preservar idioma do CSV
                 cartas_pendentes.append(card_data)
                 
                 # Excluir carta
