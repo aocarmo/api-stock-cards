@@ -46,9 +46,11 @@ class RecadastrarMassaUseCase:
                         # Substituir preço
                         preco_novo = preco if preco else card_data.get('preco')
                         
-                        # Salvar dados para recadastro
+                        # Preservar dados do CSV e complementar com dados do sistema
                         card_data['preco'] = preco_novo
                         card_data['quantidade'] = str(qtd_nova)
+                        card_data['tipo'] = tipo  # Preservar tipo do CSV
+                        card_data['idioma_nome'] = idioma  # Preservar idioma do CSV
                         cartas_pendentes.append(card_data)
                     else:
                         print(f"❌ Erro ao excluir: {numero}")
@@ -71,8 +73,8 @@ class RecadastrarMassaUseCase:
                             'idproduto': idproduto,
                             'numero': numero,
                             'colecao': colecao,
-                            'tipo': tipo,
-                            'idioma_nome': idioma,
+                            'tipo': tipo,  # Usar tipo do CSV
+                            'idioma_nome': idioma,  # Usar idioma do CSV
                             'qualidade': 'NM',
                             'preco': preco,
                             'quantidade': quantidade
@@ -103,10 +105,10 @@ class RecadastrarMassaUseCase:
         
         for carta_pendente in cartas_pendentes:
             try:
-                print(f"DEBUG - Recadastrando: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente.get('tipo', 'normal')}) ({carta_pendente.get('idioma_nome', '')})")
+                print(f"DEBUG - Recadastrando: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente['tipo']}) ({carta_pendente.get('idioma_nome', '')})")
                 
                 if self.service.create_card(carta_pendente):
-                    print(f"✅ Carta recadastrada: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente.get('tipo', 'normal')}) | Preço: {carta_pendente['preco']} | Qtd: {carta_pendente['quantidade']}")
+                    print(f"✅ Carta recadastrada: {carta_pendente['numero']} ({carta_pendente['colecao']}) ({carta_pendente['tipo']}) | Preço: {carta_pendente['preco']} | Qtd: {carta_pendente['quantidade']}")
                     
                     # Verificar se foi criação ou recadastro
                     status = 'criada' if 'id_estoque' not in carta_pendente else 'ok'
@@ -114,7 +116,7 @@ class RecadastrarMassaUseCase:
                     resultados.append({
                         'numero': carta_pendente['numero'],
                         'colecao': carta_pendente['colecao'],
-                        'tipo': carta_pendente.get('tipo', 'normal'),
+                        'tipo': carta_pendente['tipo'],
                         'idioma': carta_pendente.get('idioma_nome', ''),
                         'status': status,
                         'preco_novo': carta_pendente['preco'],
@@ -125,7 +127,7 @@ class RecadastrarMassaUseCase:
                     resultados.append({
                         'numero': carta_pendente['numero'],
                         'colecao': carta_pendente['colecao'],
-                        'tipo': carta_pendente.get('tipo', 'normal'),
+                        'tipo': carta_pendente['tipo'],
                         'idioma': carta_pendente.get('idioma_nome', ''),
                         'status': 'erro_cadastrar'
                     })
@@ -134,7 +136,7 @@ class RecadastrarMassaUseCase:
                 resultados.append({
                     'numero': carta_pendente['numero'],
                     'colecao': carta_pendente['colecao'],
-                    'tipo': carta_pendente.get('tipo', 'normal'),
+                    'tipo': carta_pendente['tipo'],
                     'idioma': carta_pendente.get('idioma_nome', ''),
                     'status': 'erro_cadastrar',
                     'erro': str(e)
