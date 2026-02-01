@@ -22,7 +22,6 @@ Globals:
         MYP_USERNAME: "17mariavitoria.argolo@gmail.com"
         MYP_PASSWORD: "Mar0809."
         CHUNK_SIZE: "50"
-        S3_BUCKET: !Ref CsvBucket
 
 Resources:
   # IAM Role padrão para Lambdas
@@ -167,6 +166,9 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Layers:
         - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref CsvBucket
       Events:
         ApiRoot:
           Type: Api
