@@ -268,7 +268,12 @@ async def upload_csv(
         
         # Validar CSV
         csv_reader = csv.DictReader(io.StringIO(content.decode('utf-8')))
-        required_fields = ['numero', 'colecao', 'tipo', 'idioma', 'preco', 'quantidade']
+        
+        # Campos obrigatórios variam por operação
+        if operation == "delete":
+            required_fields = ['numero', 'colecao', 'tipo', 'idioma']
+        else:  # update ou recadastrar
+            required_fields = ['numero', 'colecao', 'tipo', 'idioma', 'preco', 'quantidade']
         
         if not all(field in csv_reader.fieldnames for field in required_fields):
             raise HTTPException(
