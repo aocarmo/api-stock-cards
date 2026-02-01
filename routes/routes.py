@@ -255,6 +255,10 @@ async def upload_csv(
     operation: str = Form("update", description="Operação: update, delete ou recadastrar")
 ) -> CsvUploadResponseDTO:
     try:
+        # Validar operação
+        if operation not in ['update', 'delete', 'recadastrar']:
+            raise HTTPException(status_code=400, detail="Operação inválida. Use: update, delete ou recadastrar")
+        
         # Validar extensão
         if not file.filename.endswith('.csv'):
             raise HTTPException(status_code=400, detail="Arquivo deve ser CSV")
