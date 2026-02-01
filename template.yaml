@@ -80,8 +80,32 @@ Resources:
   # S3 Bucket para CSVs
   CsvBucket:
     Type: AWS::S3::Bucket
+    DependsOn: ProducerPermission
     Properties:
       BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt ProducerFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: csv-uploads/
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt ProducerFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: csv-excluir/
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt ProducerFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: csv-recadastrar/
 
   # SQS Queue
   ProcessingQueue:
