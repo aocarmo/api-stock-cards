@@ -43,12 +43,17 @@ def lambda_handler(event, context):
                 
             resultados = use_case.execute(lines)
             
-            # Separar erros
+            # Separar erros (apenas status de erro real)
             if operation == 'delete':
+                # Sucesso: excluida, nao_encontrada
                 erros = [r for r in resultados if r['status'] not in ['excluida', 'nao_encontrada']]
             elif operation == 'recadastrar':
+                # Sucesso: ok, criada
+                # Erro: erro_deletar, produto_nao_encontrado, erro, erro_cadastrar
                 erros = [r for r in resultados if r['status'] not in ['ok', 'criada']]
-            else:
+            else:  # update
+                # Sucesso: atualizada, criada
+                # Erro: erro_atualizar, produto_nao_encontrado, erro, erro_criar
                 erros = [r for r in resultados if r['status'] not in ['atualizada', 'criada']]
             
             # Atualizar DynamoDB
