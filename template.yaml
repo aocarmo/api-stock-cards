@@ -80,7 +80,6 @@ Resources:
   # S3 Bucket para CSVs
   CsvBucket:
     Type: AWS::S3::Bucket
-    DependsOn: ProducerPermission
     Properties:
       BucketName: !Sub ${ProjectName}-csv-${Environment}-${AWS::AccountId}
       NotificationConfiguration:
