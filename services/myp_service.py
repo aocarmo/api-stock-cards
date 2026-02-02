@@ -409,10 +409,10 @@ class MypService:
         # Ranges padrão se não especificado
         if not price_ranges:
             price_ranges = [
-                (0, 10),
-                (10, 50), 
-                (50, 100),
-                (100, 500),
+                (0, 9.99),
+                (10, 49.99), 
+                (50, 99.99),
+                (100, 499.99),
                 (500, 9999)
             ]
         
