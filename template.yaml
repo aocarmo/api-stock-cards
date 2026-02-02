@@ -52,6 +52,7 @@ Resources:
                   - dynamodb:*
                   - sqs:*
                   - logs:*
+                  - lambda:InvokeFunction
                 Resource: '*'
 
   # Lambda para scraping de inventário
