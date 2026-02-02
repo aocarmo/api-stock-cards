@@ -241,16 +241,38 @@ class MypService:
                         
                         print(f"DEBUG - Row: tipo_text='{tipo_text}' | idioma_text='{idioma_text}'")
                         
-                        # Mapear tipos
+                        # Mapear tipos com precisão
                         tipo_match = False
-                        if tipo == 'normal' and not tipo_text:
-                            tipo_match = True
-                        elif tipo == 'foil' and 'foil' in tipo_text and 'reverse' not in tipo_text:
-                            tipo_match = True
-                        elif tipo == 'reverse-foil' and 'reverse' in tipo_text:
-                            tipo_match = True
-                        elif tipo.lower() in tipo_text:
-                            tipo_match = True
+                        tipo_normalizado = ''
+                        
+                        if not tipo_text:
+                            tipo_normalizado = 'normal'
+                        elif 'masterball' in tipo_text or 'master ball' in tipo_text:
+                            tipo_normalizado = 'masterball-foil'
+                        elif 'pokeball' in tipo_text or 'poke ball' in tipo_text:
+                            tipo_normalizado = 'pokeball-foil'
+                        elif 'reverse' in tipo_text:
+                            tipo_normalizado = 'reverse-foil'
+                        elif 'full-art' in tipo_text or 'full art' in tipo_text:
+                            tipo_normalizado = 'full-art'
+                        elif 'altered art' in tipo_text:
+                            tipo_normalizado = 'altered-art'
+                        elif 'promo' in tipo_text:
+                            tipo_normalizado = 'promo'
+                        elif 'staff' in tipo_text:
+                            tipo_normalizado = 'staff'
+                        elif 'unlimited foil' in tipo_text:
+                            tipo_normalizado = 'unlimited-foil'
+                        elif 'unlimited' in tipo_text:
+                            tipo_normalizado = 'unlimited'
+                        elif 'oversize' in tipo_text:
+                            tipo_normalizado = 'oversize'
+                        elif 'foil' in tipo_text:
+                            tipo_normalizado = 'foil'
+                        else:
+                            tipo_normalizado = 'normal'
+                        
+                        tipo_match = (tipo_normalizado == tipo.lower())
                         
                         # Mapear idiomas
                         idioma_map = {
@@ -466,15 +488,41 @@ class MypService:
                         colecao_elem = card.find('span', class_='card-edicao')
                         colecao = colecao_elem.text.strip() if colecao_elem else ''
                         
-                        # Tipo (buscar em todos os spans da div card-qualidade)
+                        # Tipo (buscar texto exato do span dentro de card-qualidade)
                         tipo = 'normal'
                         qualidade_div = card.find('div', class_='card-qualidade')
                         if qualidade_div:
-                            all_text = qualidade_div.get_text(strip=True).lower()
-                            if 'reverse' in all_text:
-                                tipo = 'reverse-foil'
-                            elif 'foil' in all_text or 'full-art' in all_text:
-                                tipo = 'foil'
+                            # Procurar o segundo span (que contém o tipo)
+                            spans = qualidade_div.find_all('span')
+                            for span in spans:
+                                text = span.get_text(strip=True)
+                                # Ignorar spans vazios e de qualidade (NM, SP, etc)
+                                if text and text not in ['NM', 'SP', 'MP', 'HP', 'D']:
+                                    tipo_lower = text.lower()
+                                    # Mapear tipos conhecidos
+                                    if 'masterball' in tipo_lower or 'master ball' in tipo_lower:
+                                        tipo = 'masterball-foil'
+                                    elif 'pokeball' in tipo_lower or 'poke ball' in tipo_lower:
+                                        tipo = 'pokeball-foil'
+                                    elif 'reverse' in tipo_lower:
+                                        tipo = 'reverse-foil'
+                                    elif 'full-art' in tipo_lower or 'full art' in tipo_lower:
+                                        tipo = 'full-art'
+                                    elif 'altered art' in tipo_lower:
+                                        tipo = 'altered-art'
+                                    elif 'promo' in tipo_lower:
+                                        tipo = 'promo'
+                                    elif 'staff' in tipo_lower:
+                                        tipo = 'staff'
+                                    elif 'unlimited foil' in tipo_lower:
+                                        tipo = 'unlimited-foil'
+                                    elif 'unlimited' in tipo_lower:
+                                        tipo = 'unlimited'
+                                    elif 'oversize' in tipo_lower:
+                                        tipo = 'oversize'
+                                    elif 'foil' in tipo_lower:
+                                        tipo = 'foil'
+                                    break
                         
                         # Idioma (flag)
                         idioma = 'portugues'
