@@ -6,6 +6,7 @@ import csv
 import io
 import os
 from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
 from dtos.card_dtos import RecadastrarRequestDTO, AtualizarRequestDTO, ResponseDTO, CsvUploadResponseDTO, FileStatusDTO
 from use_cases.recadastrar_use_case import RecadastrarUseCase
