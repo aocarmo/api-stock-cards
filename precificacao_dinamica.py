@@ -1,360 +1,235 @@
 #!/usr/bin/env python3
 """
-Algoritmo de Precificação Dinâmica MYP Cards
-Baseado na análise de concorrência real
+Precificação Dinâmica - Estratégia de Frete Único
+Usa infraestrutura existente para otimizar preços
 """
+import requests
+import csv
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from datetime import datetime
 
-from services.myp_service import MypService
-from bs4 import BeautifulSoup
-import re
-import json
+# Adicionar path para importar services
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from services.myp_service import MYPService
+
+API_URL = "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory"
 
 class PrecificacaoDinamica:
-    def __init__(self):
-        self.myp = MypService()
-        self._init_session()
     
-    def _init_session(self):
-        """Inicializa sessão MYP"""
-        try:
-            cookies = self.myp.get_session()
-            self.myp.init_scraper(cookies)
-            print("✅ Sessão carregada")
-        except:
-            print("🔄 Fazendo login...")
-            if not self.myp.login():
-                raise Exception("❌ Erro no login")
-            cookies = self.myp.get_session()
-            self.myp.init_scraper(cookies)
+    def __init__(self, scrape_concorrentes=True):
+        self.frete_medio = 30.00  # Frete médio no Brasil
+        self.scrape_concorrentes = scrape_concorrentes
+        if scrape_concorrentes:
+            self.myp_service = MYPService()
     
-    def analisar_concorrencia(self, idproduto):
-        """Analisa concorrência de um produto específico"""
-        url = f'https://mypcards.com/pokemon/produto/{idproduto}'
+    def obter_concorrentes(self, carta):
+        """Obtém dados de concorrentes para uma carta"""
+        if not self.scrape_concorrentes:
+            return []
         
         try:
-            resp = self.myp.scraper.get(url)
-            if resp.status_code != 200:
-                return None
+            ofertas = self.myp_service.scrape_market_card(
+                carta['numero'],
+                carta['colecao'],
+                carta['tipo'],
+                carta['idioma']
+            )
             
-            soup = BeautifulSoup(resp.text, 'html.parser')
+            # Filtrar para remover você mesmo
+            meu_usuario = os.getenv('MYP_USERNAME_URL', 'aocarmo')
+            concorrentes = [o for o in ofertas if o['vendedor'].lower() != meu_usuario.lower()]
             
-            # Extrair nome do produto
-            nome_produto = soup.find('h1')
-            nome = nome_produto.get_text(strip=True) if nome_produto else f'Produto {idproduto}'
-            
-            # Extrair dados dos vendedores
-            vendedores = []
-            rows = soup.find_all('tr', {'data-key': True})
-            
-            for row in rows:
-                try:
-                    # Nome do vendedor
-                    vendedor_td = row.find('td', class_='estoque-lista-nomevendedor')
-                    vendedor = vendedor_td.find('a').get_text(strip=True) if vendedor_td and vendedor_td.find('a') else 'N/A'
-                    
-                    # Tipo (foil)
-                    tipo_td = row.find('td', class_='estoque-lista-nomeenfoil')
-                    tipo = tipo_td.get_text(strip=True) if tipo_td else 'Normal'
-                    if not tipo:
-                        tipo = 'Normal'
-                    
-                    # Idioma
-                    qualidade_td = row.find('td', class_='estoque-lista-qualidadenome')
-                    idioma = 'N/A'
-                    if qualidade_td:
-                        flag = qualidade_td.find('span', class_='flag-icon')
-                        if flag:
-                            idioma = flag.get('title', 'N/A')
-                    
-                    # Quantidade
-                    qtd_td = row.find('td', class_='estoque-lista-quantidadeestoque')
-                    quantidade_text = qtd_td.get_text(strip=True) if qtd_td else '1 un.'
-                    quantidade = int(quantidade_text.split()[0]) if quantidade_text.split() else 1
-                    
-                    # Preço
-                    preco_td = row.find('td', class_='estoque-lista-precoestoque')
-                    preco_valor = 0.0
-                    
-                    if preco_td:
-                        preco_span = preco_td.find('span', class_='moeda')
-                        if preco_span:
-                            preco_text = preco_span.get_text(strip=True)
-                            match = re.search(r'R\$\s*([\d,]+\.?\d*)', preco_text)
-                            if match:
-                                valor_str = match.group(1)
-                                if ',' in valor_str and '.' not in valor_str:
-                                    preco_valor = float(valor_str.replace(',', '.'))
-                                elif '.' in valor_str and ',' in valor_str:
-                                    preco_valor = float(valor_str.replace('.', '').replace(',', '.'))
-                                else:
-                                    preco_valor = float(valor_str)
-                    
-                    if preco_valor > 0:
-                        vendedores.append({
-                            'vendedor': vendedor,
-                            'tipo': tipo,
-                            'idioma': idioma,
-                            'quantidade': quantidade,
-                            'preco': preco_valor
-                        })
-                        
-                except Exception as e:
-                    continue
-            
-            return {
-                'nome': nome,
-                'idproduto': idproduto,
-                'vendedores': vendedores,
-                'total_ofertas': len(vendedores)
-            }
-            
+            return concorrentes
         except Exception as e:
-            print(f"❌ Erro ao analisar produto {idproduto}: {e}")
-            return None
+            print(f"⚠️  Erro ao buscar concorrentes para {carta['numero']}: {str(e)}")
+            return []
     
-    def calcular_preco_ideal(self, analise, tipo_desejado='Normal', idioma_desejado='Português', meu_estoque=1, valor_min_dinamico=5.0, valor_max_dinamico=999999.0):
-        """Calcula preço ideal baseado na concorrência E no meu estoque"""
-        if not analise or not analise['vendedores']:
-            return None
+    def calcular_preco_ideal(self, carta, concorrentes):
+        """
+        Aplica estratégia de frete único
         
-        # Filtrar por tipo e idioma
-        concorrentes = [
-            v for v in analise['vendedores'] 
-            if v['tipo'] == tipo_desejado and v['idioma'] == idioma_desejado
-        ]
+        Args:
+            carta: dict com dados da carta (numero, colecao, tipo, idioma, preco, quantidade)
+            concorrentes: list de dicts com dados dos concorrentes
         
-        if not concorrentes:
-            concorrentes = analise['vendedores']
+        Returns:
+            dict com preco_ideal, estrategia_usada, justificativa
+        """
+        preco_atual = float(carta['preco'])
+        meu_estoque = int(carta['quantidade'])
         
-        if not concorrentes:
-            return None
-        
-        # Ordenar por preço
-        concorrentes.sort(key=lambda x: x['preco'])
-        
-        precos = [c['preco'] for c in concorrentes]
-        menor = min(precos)
-        
-        # NOVA LÓGICA: Considerar vantagem do frete único APENAS no range configurado
-        menor_concorrente = concorrentes[0]
-        estoque_menor_preco = menor_concorrente['quantidade']
-        
-        # Verificar se está no range para aplicar estratégia dinâmica
-        no_range_dinamico = valor_min_dinamico <= menor <= valor_max_dinamico
-        
-        # Calcular "valor do frete único" baseado no range configurável
-        if no_range_dinamico:
-            frete_medio = 30.0  # Custo médio do frete
-            # Vantagem = economia de fretes que o cliente teria
-            if meu_estoque > estoque_menor_preco:
-                fretes_economizados = min(meu_estoque - estoque_menor_preco, 10)  # Máximo 10 fretes
-                vantagem_frete = (fretes_economizados * frete_medio) / meu_estoque  # Distribuir entre as cartas
-                vantagem_frete = min(vantagem_frete, menor * 0.25)  # Máximo 25% do valor da carta
-            else:
-                vantagem_frete = 0
+        # Encontrar menor preço concorrente
+        if concorrentes:
+            menor_preco = min(float(c['preco']) for c in concorrentes)
+            estoque_concorrente = sum(int(c.get('quantidade', 0)) for c in concorrentes)
         else:
-            vantagem_frete = 0  # Fora do range = estratégia normal
+            menor_preco = preco_atual
+            estoque_concorrente = 0
         
-        # Estratégia baseada na diferença de estoque
-        diferenca_estoque = meu_estoque - estoque_menor_preco
+        # REGRA 1: Cartas baratas (< R$5) - margem normal
+        if menor_preco < 5.00:
+            preco_ideal = menor_preco * 1.08  # +8%
+            return {
+                'preco_ideal': round(preco_ideal, 2),
+                'estrategia': 'MARGEM_NORMAL',
+                'justificativa': 'Carta barata - margem padrão 8%',
+                'premium': 0
+            }
         
-        if meu_estoque >= 10 and no_range_dinamico and estoque_menor_preco <= 3:
-            # GRANDE VANTAGEM: Posso cobrar premium pelo frete único
-            preco_ideal = menor + vantagem_frete
-            quantidade_rec = min(meu_estoque // 2, 10)  # Até 50% do estoque ou 10 unidades
-            estrategia = f"Premium por frete único - concorrente tem só {estoque_menor_preco} un."
-            
-        elif meu_estoque >= 5 and no_range_dinamico and diferenca_estoque >= 3:  # Vantagem moderada
-            preco_ideal = menor + (vantagem_frete * 0.6)
-            quantidade_rec = min(meu_estoque // 3, 8)
-            estrategia = f"Vantagem moderada - {diferenca_estoque} unidades a mais"
-            
-        else:  # Estratégia normal
-            num_concorrentes = len(concorrentes)
-            vantagem_frete = 0  # Não aplicar vantagem frete em estratégia normal
-            
-            if num_concorrentes <= 3:
-                preco_ideal = menor * 1.10
-                quantidade_rec = min(meu_estoque, 5)
-                estrategia = "Baixa concorrência - estratégia normal"
-            elif num_concorrentes <= 8:
-                preco_ideal = menor * 1.08
-                quantidade_rec = min(meu_estoque, 3)
-                estrategia = "Média concorrência - estratégia normal"
+        # REGRA 2: Cartas médias (R$5-10) com estoque
+        if 5.00 <= menor_preco < 10.00:
+            if meu_estoque >= 5 and (meu_estoque - estoque_concorrente) >= 3:
+                preco_ideal = menor_preco * 1.18  # +18%
+                return {
+                    'preco_ideal': round(preco_ideal, 2),
+                    'estrategia': 'PREMIUM_MODERADO',
+                    'justificativa': f'Estoque vantajoso ({meu_estoque} vs {estoque_concorrente})',
+                    'premium': round(preco_ideal - menor_preco, 2)
+                }
             else:
-                preco_ideal = menor * 1.05
-                quantidade_rec = min(meu_estoque, 2)
-                estrategia = "Alta concorrência - estratégia normal"
+                preco_ideal = menor_preco * 1.10  # +10%
+                return {
+                    'preco_ideal': round(preco_ideal, 2),
+                    'estrategia': 'MARGEM_NORMAL',
+                    'justificativa': 'Estoque similar aos concorrentes',
+                    'premium': 0
+                }
         
-        # Garantir margem mínima
-        preco_ideal = max(preco_ideal, menor * 1.05)
+        # REGRA 3: Cartas caras (≥R$10) - VANTAGEM FRETE ÚNICO
+        if menor_preco >= 10.00:
+            if meu_estoque >= 10 and estoque_concorrente <= 3:
+                # Calcular vantagem do frete único
+                economia_frete = self.frete_medio * (meu_estoque - 1)
+                premium_por_carta = economia_frete / meu_estoque
+                
+                # Limitar premium a 25% do valor da carta
+                premium_maximo = menor_preco * 0.25
+                premium_aplicado = min(premium_por_carta, premium_maximo)
+                
+                preco_ideal = menor_preco + premium_aplicado
+                
+                return {
+                    'preco_ideal': round(preco_ideal, 2),
+                    'estrategia': 'PREMIUM_FRETE_UNICO',
+                    'justificativa': f'Frete único: economia de R${economia_frete:.2f} para {meu_estoque} cartas',
+                    'premium': round(premium_aplicado, 2),
+                    'quantidade_disponibilizar': int(meu_estoque * 0.5)  # Disponibilizar 50%
+                }
+            else:
+                preco_ideal = menor_preco * 1.12  # +12%
+                return {
+                    'preco_ideal': round(preco_ideal, 2),
+                    'estrategia': 'MARGEM_NORMAL',
+                    'justificativa': 'Estoque insuficiente para premium',
+                    'premium': 0
+                }
         
+        # Fallback
         return {
-            'preco_ideal': round(preco_ideal, 2),
-            'quantidade_recomendada': quantidade_rec,
-            'posicao_estimada': '2ª-3ª mais barata' if vantagem_frete == 0 else 'Premium justificado',
-            'margem_sobre_menor': round(((preco_ideal/menor-1)*100), 1),
-            'estrategia': estrategia,
-            'vantagem_frete_unico': round(vantagem_frete, 2),
-            'valor_min_dinamico': valor_min_dinamico,
-            'valor_max_dinamico': valor_max_dinamico,
-            'no_range_dinamico': no_range_dinamico,
-            'aplicou_dinamico': no_range_dinamico and vantagem_frete > 0,
-            'meu_estoque': meu_estoque,
-            'estoque_menor_preco': estoque_menor_preco,
-            'diferenca_estoque': diferenca_estoque,
-            'concorrentes_diretos': len(concorrentes),
-            'menor_preco_concorrencia': menor,
-            'alertas': self._gerar_alertas_v2(concorrentes, preco_ideal, meu_estoque, menor)
+            'preco_ideal': preco_atual,
+            'estrategia': 'MANTER',
+            'justificativa': 'Sem dados suficientes',
+            'premium': 0
         }
     
-    def _gerar_alertas_v2(self, concorrentes, preco_ideal, meu_estoque, menor_preco):
-        """Gera alertas considerando vantagem do frete único"""
-        alertas = []
+    def processar_inventario(self, filtros=None):
+        """
+        Processa todo o inventário e gera CSV com preços otimizados
         
-        menor_concorrente = concorrentes[0]
-        estoque_menor_preco = menor_concorrente['quantidade']
+        Args:
+            filtros: dict com filtros opcionais (colecao, tipo, idioma)
         
-        # Alerta de oportunidade de frete único
-        if meu_estoque >= 10 and menor_preco >= 5.0 and estoque_menor_preco <= 2:
-            alertas.append(f"🎯 GRANDE OPORTUNIDADE: Você tem {meu_estoque} un. vs {estoque_menor_preco} un. do mais barato")
-            alertas.append("💰 Pode cobrar premium pelo frete único!")
+        Returns:
+            str: caminho do arquivo CSV gerado
+        """
+        # 1. Obter inventário atual (USA API EXISTENTE)
+        params = filtros or {}
+        params['limit'] = 10000
         
-        # Alerta de vantagem moderada
-        elif meu_estoque >= 5 and (meu_estoque - estoque_menor_preco) >= 3:
-            alertas.append(f"📦 Vantagem de estoque: +{meu_estoque - estoque_menor_preco} unidades vs concorrente")
+        response = requests.get(API_URL, params=params)
+        data = response.json()
         
-        # Alerta de desvantagem
-        elif estoque_menor_preco >= meu_estoque * 2:
-            alertas.append(f"⚠️ Concorrente tem muito mais estoque ({estoque_menor_preco} vs {meu_estoque})")
+        if not data.get('success'):
+            raise Exception(f"Erro ao obter inventário: {data.get('error')}")
         
-        # Alerta de guerra de preços
-        precos_similares = [c['preco'] for c in concorrentes if c['preco'] < menor_preco * 1.1]
-        if len(precos_similares) >= 3:
-            alertas.append("⚠️ Guerra de preços ativa - muitos vendedores com preços similares")
+        cartas = data['cards']
         
-        # Alerta de margem
-        margem = (preco_ideal / menor_preco - 1) * 100
-        if margem < 8:
-            alertas.append("💰 Margem baixa - considere focar em outras cartas")
-        elif margem > 25:
-            alertas.append("🚀 Margem alta - ótima oportunidade!")
+        # 2. Para cada carta, calcular preço ideal
+        resultados = []
+        total = len(cartas)
         
-        return alertas
-    
-    def processar_carta(self, numero, colecao, tipo='Normal', idioma='Português', meu_estoque=1, valor_min_dinamico=5.0, valor_max_dinamico=999999.0):
-        """Processa uma carta específica e retorna estratégia completa"""
-        print(f"\n🔍 Analisando: {numero} ({colecao}) - {tipo} - {idioma} | Estoque: {meu_estoque}")
-        print(f"🎯 Range dinâmico: R$ {valor_min_dinamico:.2f} - R$ {valor_max_dinamico:.2f}")
-        print("=" * 80)
+        print(f"\n🔍 Analisando {total} cartas...")
+        print(f"{'='*60}\n")
         
-        # Buscar ID do produto
-        idproduto = self.myp.search_product_id(numero, colecao)
-        if not idproduto:
-            return {"erro": f"Produto não encontrado: {numero} ({colecao})"}
+        for i, carta in enumerate(cartas, 1):
+            # Obter dados de concorrentes (scraping real)
+            concorrentes = self.obter_concorrentes(carta)
+            
+            resultado = self.calcular_preco_ideal(carta, concorrentes)
+            
+            resultados.append({
+                **carta,
+                **resultado,
+                'concorrentes_encontrados': len(concorrentes)
+            })
+            
+            # Progress
+            if i % 10 == 0 or i == total:
+                print(f"Processadas: {i}/{total} ({i/total*100:.1f}%)")
         
-        # Analisar concorrência
-        analise = self.analisar_concorrencia(idproduto)
-        if not analise:
-            return {"erro": f"Erro ao analisar concorrência do produto {idproduto}"}
+        print(f"\n{'='*60}\n")
         
-        # Calcular preço ideal COM RANGE
-        estrategia = self.calcular_preco_ideal(analise, tipo, idioma, meu_estoque, valor_min_dinamico, valor_max_dinamico)
-        if not estrategia:
-            return {"erro": "Não foi possível calcular estratégia de preço"}
+        # 3. Gerar CSV para atualização (USA FORMATO EXISTENTE)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'precos_otimizados_{timestamp}.csv'
         
-        # Montar resultado
-        resultado = {
-            "carta": f"{numero} ({colecao})",
-            "tipo": tipo,
-            "idioma": idioma,
-            "meu_estoque": meu_estoque,
-            "valor_min_dinamico": valor_min_dinamico,
-            "valor_max_dinamico": valor_max_dinamico,
-            "idproduto": idproduto,
-            "analise_concorrencia": analise,
-            "estrategia": estrategia
-        }
+        with open(filename, 'w') as f:
+            f.write('numero,colecao,tipo,idioma,preco,quantidade\n')
+            for r in resultados:
+                # Usar quantidade ajustada se houver premium de frete
+                qtd = r.get('quantidade_disponibilizar', r['quantidade'])
+                f.write(f"{r['numero']},{r['colecao']},{r['tipo']},{r['idioma']},{r['preco_ideal']},{qtd}\n")
         
-        # Exibir resultado
-        self._exibir_resultado_v2(resultado)
+        # 4. Gerar relatório
+        print(f"\n{'='*60}")
+        print(f"📊 RELATÓRIO DE PRECIFICAÇÃO")
+        print(f"{'='*60}\n")
         
-        return resultado
-    
-    def _exibir_resultado_v2(self, resultado):
-        """Exibe resultado formatado com nova lógica"""
-        est = resultado['estrategia']
-        analise = resultado['analise_concorrencia']
+        estrategias = {}
+        for r in resultados:
+            est = r['estrategia']
+            estrategias[est] = estrategias.get(est, 0) + 1
         
-        print(f"📊 CONCORRÊNCIA: {analise['total_ofertas']} ofertas ativas")
-        print(f"🎯 PREÇO IDEAL: R$ {est['preco_ideal']:.2f}")
-        print(f"📦 QUANTIDADE: {est['quantidade_recomendada']} unidades")
-        print(f"📈 MARGEM: +{est['margem_sobre_menor']:.1f}% sobre menor preço")
-        print(f"🏆 POSIÇÃO: {est['posicao_estimada']}")
-        print(f"💡 ESTRATÉGIA: {est['estrategia']}")
+        for est, count in estrategias.items():
+            print(f"{est:25} - {count:4} cartas")
         
-        # Mostrar se aplicou estratégia dinâmica
-        if est.get('no_range_dinamico', False):
-            if est.get('aplicou_dinamico', False):
-                print(f"🎯 ESTRATÉGIA DINÂMICA APLICADA (R$ {est['valor_min_dinamico']:.2f} - R$ {est['valor_max_dinamico']:.2f})")
-            else:
-                print(f"📊 NO RANGE MAS SEM VANTAGEM (R$ {est['valor_min_dinamico']:.2f} - R$ {est['valor_max_dinamico']:.2f})")
-        else:
-            print(f"📊 FORA DO RANGE DINÂMICO (R$ {est['valor_min_dinamico']:.2f} - R$ {est['valor_max_dinamico']:.2f})")
+        print(f"\n{'='*60}")
+        print(f"✅ CSV gerado: {filename}")
+        print(f"📦 Total de cartas: {len(resultados)}")
+        print(f"\n💡 Para aplicar os preços:")
+        print(f"curl -X POST .../upload-csv -F 'file=@{filename}' -F 'operation=atualizar'")
+        print(f"{'='*60}\n")
         
-        # Mostrar vantagem do frete único
-        if est.get('vantagem_frete_unico', 0) > 0:
-            print(f"🚚 VANTAGEM FRETE ÚNICO: +R$ {est['vantagem_frete_unico']:.2f}")
-        
-        # Comparação de estoque
-        print(f"\n📦 COMPARAÇÃO DE ESTOQUE:")
-        print(f"• Seu estoque: {est['meu_estoque']} unidades")
-        print(f"• Menor preço tem: {est['estoque_menor_preco']} unidades")
-        print(f"• Diferença: {est['diferenca_estoque']:+d} unidades")
-        
-        if est['alertas']:
-            print(f"\n⚠️ ALERTAS:")
-            for alerta in est['alertas']:
-                print(f"  {alerta}")
-        
-        print(f"\n📋 RESUMO EXECUTIVO:")
-        print(f"• Concorrentes diretos: {est['concorrentes_diretos']}")
-        print(f"• Menor preço mercado: R$ {est['menor_preco_concorrencia']:.2f}")
-        
-        # Justificativa da estratégia
-        if est.get('vantagem_frete_unico', 0) > 0:
-            print(f"\n💰 JUSTIFICATIVA DO PREÇO PREMIUM:")
-            print(f"• Cliente economiza R$ 30 de frete comprando {est['meu_estoque']} cartas")
-            print(f"• Vs {est['estoque_menor_preco']} fretes de R$ 30 = R$ {est['estoque_menor_preco'] * 30:.0f}")
-            print(f"• Economia real do cliente: R$ {(est['estoque_menor_preco'] - 1) * 30:.0f}")
-            print(f"• Seu premium: R$ {est['vantagem_frete_unico']:.2f} (justo!)")
+        return filename
 
-def main():
-    """Exemplo de uso com diferentes cenários de estoque"""
+if __name__ == '__main__':
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Precificação dinâmica com estratégia de frete único')
+    parser.add_argument('--colecao', help='Filtrar por coleção')
+    parser.add_argument('--tipo', help='Filtrar por tipo')
+    parser.add_argument('--idioma', help='Filtrar por idioma')
+    
+    args = parser.parse_args()
+    
+    filtros = {}
+    if args.colecao:
+        filtros['colecao'] = args.colecao
+    if args.tipo:
+        filtros['tipo'] = args.tipo
+    if args.idioma:
+        filtros['idioma'] = args.idioma
+    
     precificacao = PrecificacaoDinamica()
-    
-    print("🧪 TESTANDO ESTRATÉGIA COM DIFERENTES ESTOQUES")
-    print("=" * 60)
-    
-    # Cenário 1: Pouco estoque (estratégia normal)
-    print("\n🔸 CENÁRIO 1: Pouco estoque")
-    resultado1 = precificacao.processar_carta("161/131", "PRE", "Normal", "Português", meu_estoque=2)
-    
-    # Cenário 2: Muito estoque (vantagem frete único)
-    print("\n🔸 CENÁRIO 2: Muito estoque")
-    resultado2 = precificacao.processar_carta("161/131", "PRE", "Normal", "Português", meu_estoque=20)
-    
-    # Salvar resultado em JSON para uso posterior
-    with open('/tmp/estrategia_precificacao_v2.json', 'w') as f:
-        json.dump({
-            'pouco_estoque': resultado1,
-            'muito_estoque': resultado2
-        }, f, indent=2, ensure_ascii=False)
-    
-    print(f"\n✅ Estratégias salvas em /tmp/estrategia_precificacao_v2.json")
-
-if __name__ == "__main__":
-    main()
+    precificacao.processar_inventario(filtros)

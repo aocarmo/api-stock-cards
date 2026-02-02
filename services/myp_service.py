@@ -527,6 +527,64 @@ class MypService:
                 time.sleep(0.5)
         
         return all_cards
+    
+    def scrape_market_card(self, numero, colecao, tipo, idioma):
+        """
+        Busca uma carta específica no mercado (todos os vendedores)
+        
+        Args:
+            numero: Número da carta (ex: 077/131)
+            colecao: Sigla da coleção (ex: PRE)
+            tipo: Tipo da carta (normal, foil, reverse-foil)
+            idioma: Idioma (portugues, ingles, espanhol)
+        
+        Returns:
+            list: Lista de ofertas de diferentes vendedores
+        """
+        # Buscar carta no site
+        search_url = "https://mypcards.com/busca"
+        params = {
+            'q': f"{numero} {colecao}",
+            'tipo': tipo,
+            'idioma': idioma
+        }
+        
+        resp = self.scraper.get(search_url, params=params)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        ofertas = []
+        cards = soup.find_all('div', class_='card')
+        
+        for card in cards:
+            try:
+                # Vendedor
+                vendedor_elem = card.find('a', class_='vendedor-link')
+                vendedor = vendedor_elem.get_text(strip=True) if vendedor_elem else 'Desconhecido'
+                
+                # Preço
+                preco_elem = card.find('span', class_='moeda')
+                if not preco_elem:
+                    continue
+                preco_text = preco_elem.get_text(strip=True).replace('R$', '').replace('.', '').replace(',', '.').strip()
+                preco = float(preco_text)
+                
+                # Quantidade
+                qtd_elem = card.find('span', class_='quantidade-num')
+                quantidade = int(qtd_elem.get_text(strip=True)) if qtd_elem else 0
+                
+                ofertas.append({
+                    'vendedor': vendedor,
+                    'preco': preco,
+                    'quantidade': quantidade,
+                    'numero': numero,
+                    'colecao': colecao,
+                    'tipo': tipo,
+                    'idioma': idioma
+                })
+            except Exception as e:
+                continue
+        
+        return ofertas
         
         return all_cards
 
