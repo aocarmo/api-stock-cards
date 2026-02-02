@@ -615,7 +615,7 @@ async def health_check():
 # ==================== INVENTORY ENDPOINTS ====================
 
 @router.post(
-    "/api/v1/inventory/sync",
+    "/inventory/sync",
     status_code=status.HTTP_200_OK,
     summary="Sincronizar inventário",
     description="Inicia scraping assíncrono do inventário completo em paralelo"
@@ -639,7 +639,7 @@ async def sync_inventory():
         raise HTTPException(status_code=500, detail=f"Erro ao iniciar sincronização: {str(e)}")
 
 @router.get(
-    "/api/v1/inventory/status/{job_id}",
+    "/inventory/status/{job_id}",
     status_code=status.HTTP_200_OK,
     summary="Status de sincronização",
     description="Retorna progresso da sincronização em andamento"
@@ -679,7 +679,7 @@ async def get_inventory_status(job_id: str):
         raise HTTPException(status_code=500, detail=f"Erro ao consultar status: {str(e)}")
 
 @router.get(
-    "/api/v1/inventory/summary",
+    "/inventory/summary",
     status_code=status.HTTP_200_OK,
     summary="Resumo do inventário",
     description="Retorna agregados da última contagem (rápido)"
@@ -715,7 +715,7 @@ async def get_inventory_summary():
         raise HTTPException(status_code=500, detail=f"Erro ao consultar resumo: {str(e)}")
 
 @router.get(
-    "/api/v1/inventory",
+    "/inventory",
     status_code=status.HTTP_200_OK,
     summary="Consultar inventário",
     description="Retorna cartas do inventário com filtros opcionais"
