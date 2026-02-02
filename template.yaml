@@ -19,8 +19,12 @@ Globals:
     Environment:
       Variables:
         DYNAMODB_TABLE: !Ref FilesTable
+        INVENTORY_JOBS_TABLE: !Ref InventoryJobsTable
+        INVENTORY_DATA_TABLE: !Ref InventoryDataTable
+        INVENTORY_BUCKET: !Ref InventoryBucket
         MYP_USERNAME: "17mariavitoria.argolo@gmail.com"
         MYP_PASSWORD: "Mar0809."
+        MYP_USERNAME_URL: "aocarmo"
         CHUNK_SIZE: "50"
 
 Resources:
@@ -143,6 +147,55 @@ Resources:
         - AttributeName: file_id
           KeyType: HASH
 
+  # DynamoDB - Inventory Jobs
+  InventoryJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${ProjectName}-inventory-jobs-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # DynamoDB - Inventory Data (última contagem)
+  InventoryDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${ProjectName}-inventory-data-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: job_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: job_id-index
+          KeySchema:
+            - AttributeName: job_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # S3 Bucket para Inventory
+  InventoryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-inventory-${Environment}-${AWS::AccountId}
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldInventories
+            Status: Enabled
+            ExpirationInDays: 7
+
   # Layer
   DependenciesLayer:
     Type: AWS::Serverless::LayerVersion
@@ -227,6 +280,19 @@ Resources:
             ScalingConfig:
               MaximumConcurrency: 50
 
+  # Lambda: Inventory Scraper (paralelo)
+  InventoryScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-inventory-scraper-${Environment}
+      CodeUri: ./
+      Handler: lambdas.inventory_scraper.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+
 Outputs:
   ApiUrl:
     Description: URL da API
@@ -243,3 +309,15 @@ Outputs:
   FilesTableName:
     Description: Nome da tabela DynamoDB
     Value: !Ref FilesTable
+  
+  InventoryBucketName:
+    Description: Nome do bucket S3 de inventário
+    Value: !Ref InventoryBucket
+  
+  InventoryJobsTableName:
+    Description: Nome da tabela DynamoDB de jobs de inventário
+    Value: !Ref InventoryJobsTable
+  
+  InventoryDataTableName:
+    Description: Nome da tabela DynamoDB de dados de inventário
+    Value: !Ref InventoryDataTable

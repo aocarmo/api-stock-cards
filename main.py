@@ -28,6 +28,12 @@ app = FastAPI(
     Verifica progresso do processamento do arquivo CSV:
     - Status (PENDING, PROCESSING, COMPLETED, FAILED)
     - Progresso percentual
+    
+    ### 5. Inventário
+    Gerenciamento de inventário com contagem assíncrona:
+    - Sincronização paralela por faixa de preço
+    - Consulta com filtros (coleção, tipo, idioma, preço, quantidade)
+    - Agregados em tempo real
     - Linhas com erro
     
     ## Formato CSV

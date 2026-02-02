@@ -611,3 +611,147 @@ async def get_file_status(file_id: str) -> FileStatusDTO:
 async def health_check():
     return {"status": "ok", "message": "MYP Cards API está funcionando"}
 
+# ==================== INVENTORY ENDPOINTS ====================
+
+@router.post(
+    "/api/v1/inventory/sync",
+    status_code=status.HTTP_200_OK,
+    summary="Sincronizar inventário",
+    description="Inicia scraping assíncrono do inventário completo em paralelo"
+)
+async def sync_inventory():
+    """Inicia sincronização assíncrona do inventário"""
+    from use_cases.sync_inventory_use_case import SyncInventoryUseCase
+    
+    try:
+        use_case = SyncInventoryUseCase()
+        result = use_case.execute()
+        
+        if not result['success']:
+            raise HTTPException(status_code=429, detail=result['error'])
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao iniciar sincronização: {str(e)}")
+
+@router.get(
+    "/api/v1/inventory/status/{job_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Status de sincronização",
+    description="Retorna progresso da sincronização em andamento"
+)
+async def get_inventory_status(job_id: str):
+    """Consulta status de um job de sincronização"""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        jobs_table = dynamodb.Table(os.getenv('INVENTORY_JOBS_TABLE'))
+        
+        response = jobs_table.get_item(Key={'job_id': job_id})
+        
+        if 'Item' not in response:
+            raise HTTPException(status_code=404, detail="Job não encontrado")
+        
+        item = response['Item']
+        
+        total_ranges = item.get('total_ranges', 0)
+        ranges_completed = item.get('ranges_completed', 0)
+        progress = (ranges_completed / total_ranges * 100) if total_ranges > 0 else 0
+        
+        return {
+            'job_id': item['job_id'],
+            'status': item['status'],
+            'total_ranges': total_ranges,
+            'ranges_completed': ranges_completed,
+            'progress_percent': round(progress, 2),
+            'total_cards': item.get('total_cards'),
+            'started_at': item['started_at'],
+            'completed_at': item.get('completed_at'),
+            'error': item.get('error')
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar status: {str(e)}")
+
+@router.get(
+    "/api/v1/inventory/summary",
+    status_code=status.HTTP_200_OK,
+    summary="Resumo do inventário",
+    description="Retorna agregados da última contagem (rápido)"
+)
+async def get_inventory_summary():
+    """Retorna apenas agregados do inventário"""
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        data_table = dynamodb.Table(os.getenv('INVENTORY_DATA_TABLE'))
+        
+        response = data_table.get_item(Key={'pk': 'LATEST'})
+        
+        if 'Item' not in response:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum inventário disponível. Execute /sync primeiro."
+            )
+        
+        item = response['Item']
+        
+        return {
+            'total_cards': item['total_cards'],
+            'by_collection': item['by_collection'],
+            'by_type': item['by_type'],
+            'by_language': item['by_language'],
+            'updated_at': item['updated_at'],
+            'job_id': item['job_id']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar resumo: {str(e)}")
+
+@router.get(
+    "/api/v1/inventory",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar inventário",
+    description="Retorna cartas do inventário com filtros opcionais"
+)
+async def get_inventory(
+    colecao: Optional[str] = None,
+    numero: Optional[str] = None,
+    tipo: Optional[str] = None,
+    idioma: Optional[str] = None,
+    preco_min: Optional[float] = None,
+    preco_max: Optional[float] = None,
+    quantidade_min: Optional[int] = None,
+    limit: Optional[int] = 1000
+):
+    """Consulta inventário com filtros"""
+    from use_cases.get_inventory_use_case import GetInventoryUseCase
+    
+    try:
+        use_case = GetInventoryUseCase()
+        result = use_case.execute(
+            colecao=colecao,
+            numero=numero,
+            tipo=tipo,
+            idioma=idioma,
+            preco_min=preco_min,
+            preco_max=preco_max,
+            quantidade_min=quantidade_min,
+            limit=limit
+        )
+        
+        if not result['success']:
+            raise HTTPException(status_code=404, detail=result['error'])
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar inventário: {str(e)}")
+

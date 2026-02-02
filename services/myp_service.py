@@ -403,10 +403,8 @@ class MypService:
         return resp.status_code == 200 or 'estoque/update' in resp.url
     
     def scrape_inventory(self, price_ranges=None):
-        """Scraping completo do inventário com paginação e filtros de preço"""
-        if not self.username_url:
-            print("❌ Username não disponível")
-            return []
+        """Scraping completo do inventário usando endpoint load-more"""
+        username = os.getenv('MYP_USERNAME_URL', 'aocarmo')
         
         # Ranges padrão se não especificado
         if not price_ranges:
@@ -426,50 +424,56 @@ class MypService:
             
             while True:
                 params = {
+                    'nick': username,
+                    'page': page,
                     'PastaSearch[precoMinimo]': f'{min_price:.2f}',
-                    'PastaSearch[precoMaximo]': f'{max_price}',
-                    'sort': 'precoestoque',
-                    'page': page
+                    'PastaSearch[precoMaximo]': f'{max_price}'
                 }
                 
-                url = f'https://mypcards.com/{self.username_url}/pokemon'
-                resp = self.scraper.get(url, params=params)
+                resp = self.scraper.get('https://mypcards.com/usuario/load-more', params=params)
                 
                 if resp.status_code != 200:
                     break
                 
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                cards = soup.find_all('div', class_='col-md-3')
+                try:
+                    data = resp.json()
+                except:
+                    break
+                
+                # Parsear HTML retornado
+                soup = BeautifulSoup(data['html'], 'html.parser')
+                cards = soup.find_all('li', class_='stream-item')
                 
                 if not cards:
                     break
                 
                 for card in cards:
                     try:
-                        # Nome da carta
-                        nome_elem = card.find('h5', class_='card-title')
+                        # Nome da carta (h3)
+                        nome_elem = card.find('h3')
                         nome = nome_elem.text.strip() if nome_elem else ''
                         
-                        # Extrair número e coleção do nome
+                        # Extrair número do nome
                         numero = ''
-                        colecao = ''
                         if nome:
                             parts = nome.split()
-                            for i, part in enumerate(parts):
+                            for part in parts:
                                 if '/' in part and any(c.isdigit() for c in part):
-                                    numero = part
-                                    if i > 0:
-                                        colecao = parts[i-1]
+                                    numero = part.replace('(', '').replace(')', '')
                                     break
                         
-                        # Tipo (foil)
-                        tipo_elem = card.find('span', class_='badge')
+                        # Coleção (span.card-edicao)
+                        colecao_elem = card.find('span', class_='card-edicao')
+                        colecao = colecao_elem.text.strip() if colecao_elem else ''
+                        
+                        # Tipo (buscar em todos os spans da div card-qualidade)
                         tipo = 'normal'
-                        if tipo_elem:
-                            tipo_text = tipo_elem.text.strip().lower()
-                            if 'reverse' in tipo_text:
+                        qualidade_div = card.find('div', class_='card-qualidade')
+                        if qualidade_div:
+                            all_text = qualidade_div.get_text(strip=True).lower()
+                            if 'reverse' in all_text:
                                 tipo = 'reverse-foil'
-                            elif 'foil' in tipo_text:
+                            elif 'foil' in all_text or 'full-art' in all_text:
                                 tipo = 'foil'
                         
                         # Idioma (flag)
@@ -492,13 +496,13 @@ class MypService:
                         preco_elem = card.find('span', class_='moeda')
                         preco = '0.00'
                         if preco_elem:
-                            preco = preco_elem.text.replace('R$', '').replace(' ', '').replace(',', '.')
+                            preco = preco_elem.text.replace('R$', '').replace(' ', '').replace(',', '.').strip()
                         
                         # Quantidade
-                        qtd_elem = card.find('span', string=lambda x: x and 'Qtd:' in x)
+                        qtd_elem = card.find('span', class_='quantidade-num')
                         quantidade = '1'
                         if qtd_elem:
-                            quantidade = qtd_elem.text.replace('Qtd:', '').strip()
+                            quantidade = qtd_elem.text.strip()
                         
                         if numero and colecao:
                             all_cards.append({
@@ -514,9 +518,15 @@ class MypService:
                         print(f"Erro ao processar carta: {e}")
                         continue
                 
+                # Verificar se tem mais páginas (usar metadado do JSON)
+                if not data.get('hasMorePages', False):
+                    break
+                
                 page += 1
                 import time
                 time.sleep(0.5)
+        
+        return all_cards
         
         return all_cards
 
