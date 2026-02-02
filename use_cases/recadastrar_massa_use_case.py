@@ -39,16 +39,15 @@ class RecadastrarMassaUseCase:
                     if self.service.delete_card(card_data['id_estoque']):
                         print(f"✅ Carta excluída: {numero} ({colecao}) ({tipo}) ({idioma})")
                         
-                        # Incrementar quantidade (somar)
-                        qtd_atual = int(card_data.get('quantidade', 0))
-                        qtd_nova = qtd_atual + int(quantidade) if quantidade else qtd_atual
+                        # MANTER quantidade atual (NÃO somar)
+                        qtd_atual = card_data.get('quantidade')
                         
-                        # Substituir preço
+                        # Substituir preço se vier no CSV, senão manter atual
                         preco_novo = preco if preco else card_data.get('preco')
                         
-                        # Preservar dados do CSV e complementar com dados do sistema
+                        # Preservar dados e aplicar novo preço
                         card_data['preco'] = preco_novo
-                        card_data['quantidade'] = str(qtd_nova)
+                        card_data['quantidade'] = qtd_atual  # MANTER quantidade atual
                         card_data['tipo'] = tipo  # Preservar tipo do CSV
                         card_data['idioma_nome'] = idioma  # Preservar idioma do CSV
                         cartas_pendentes.append(card_data)
