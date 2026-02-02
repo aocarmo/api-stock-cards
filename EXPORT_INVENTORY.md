@@ -1,6 +1,126 @@
 # Exportar Inventário para CSV
 
-Script para exportar o inventário de cartas para CSV com filtros personalizados.
+Existem **duas formas** de exportar o inventário:
+
+1. **Via API (curl)** - Download direto do CSV
+2. **Via Script Python** - Mais flexível para automação
+
+---
+
+## 🌐 Método 1: Via API (Recomendado)
+
+### Endpoint
+```
+GET /api/v1/inventory/export
+```
+
+### URL Base
+```
+https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export
+```
+
+### 📝 Exemplos com curl
+
+#### Exportar tudo
+```bash
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export"
+# Baixa: inventario.csv
+```
+
+#### Filtrar por coleção
+```bash
+# Apenas coleção PRE
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?colecao=PRE"
+# Baixa: pre.csv
+
+# Apenas coleção MEG
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?colecao=MEG"
+# Baixa: meg.csv
+
+# Apenas coleção DRI
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?colecao=DRI"
+# Baixa: dri.csv
+```
+
+#### Filtrar por tipo
+```bash
+# Apenas cartas foil
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?tipo=foil"
+# Baixa: foil.csv
+
+# Apenas cartas reverse-foil
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?tipo=reverse-foil"
+# Baixa: reverse-foil.csv
+
+# Apenas cartas normais
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?tipo=normal"
+# Baixa: normal.csv
+```
+
+#### Filtrar por idioma
+```bash
+# Apenas cartas em português
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?idioma=portugues"
+# Baixa: portugues.csv
+
+# Apenas cartas em inglês
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?idioma=ingles"
+# Baixa: ingles.csv
+
+# Apenas cartas em espanhol
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?idioma=espanhol"
+# Baixa: espanhol.csv
+```
+
+#### Filtrar por preço
+```bash
+# Cartas até R$5
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?preco_max=5"
+
+# Cartas entre R$10 e R$50
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?preco_min=10&preco_max=50"
+
+# Cartas acima de R$100
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?preco_min=100"
+```
+
+#### Filtrar por quantidade
+```bash
+# Apenas cartas com estoque (quantidade >= 1)
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?quantidade_min=1"
+
+# Apenas cartas com estoque alto (quantidade >= 5)
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?quantidade_min=5"
+```
+
+#### Combinar múltiplos filtros
+```bash
+# Cartas foil da coleção PRE em português
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?colecao=PRE&tipo=foil&idioma=portugues"
+# Baixa: pre_foil_portugues.csv
+
+# Cartas reverse-foil baratas (até R$5) com estoque
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?tipo=reverse-foil&preco_max=5&quantidade_min=1"
+# Baixa: reverse-foil.csv
+
+# Cartas em inglês da coleção MEG acima de R$10
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?colecao=MEG&idioma=ingles&preco_min=10"
+# Baixa: meg_ingles.csv
+
+# Cartas normais em português entre R$1 e R$3
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?tipo=normal&idioma=portugues&preco_min=1&preco_max=3"
+# Baixa: normal_portugues.csv
+```
+
+#### Usar no navegador
+Basta colar a URL no navegador para download automático:
+```
+https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?colecao=PRE
+```
+
+---
+
+## 🐍 Método 2: Via Script Python
 
 ## 🚀 Uso Básico
 
