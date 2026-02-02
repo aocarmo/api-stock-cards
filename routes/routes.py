@@ -756,3 +756,70 @@ async def get_inventory(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar inventário: {str(e)}")
 
+@router.get(
+    "/inventory/export",
+    status_code=status.HTTP_200_OK,
+    summary="Exportar inventário em CSV",
+    description="Retorna inventário em formato CSV para download"
+)
+async def export_inventory_csv(
+    colecao: Optional[str] = None,
+    numero: Optional[str] = None,
+    tipo: Optional[str] = None,
+    idioma: Optional[str] = None,
+    preco_min: Optional[float] = None,
+    preco_max: Optional[float] = None,
+    quantidade_min: Optional[int] = None,
+    limit: Optional[int] = 10000
+):
+    """Exporta inventário em formato CSV"""
+    from fastapi.responses import StreamingResponse
+    from io import StringIO
+    from use_cases.get_inventory_use_case import GetInventoryUseCase
+    
+    try:
+        use_case = GetInventoryUseCase()
+        result = use_case.execute(
+            colecao=colecao,
+            numero=numero,
+            tipo=tipo,
+            idioma=idioma,
+            preco_min=preco_min,
+            preco_max=preco_max,
+            quantidade_min=quantidade_min,
+            limit=limit
+        )
+        
+        if not result['success']:
+            raise HTTPException(status_code=404, detail=result['error'])
+        
+        # Gerar CSV
+        output = StringIO()
+        output.write('numero,colecao,tipo,idioma,preco,quantidade\n')
+        
+        for card in result['cards']:
+            output.write(f"{card['numero']},{card['colecao']},{card['tipo']},{card['idioma']},{card['preco']},{card['quantidade']}\n")
+        
+        output.seek(0)
+        
+        # Definir nome do arquivo baseado nos filtros
+        filename = 'inventario'
+        if colecao:
+            filename = f'{colecao.lower()}'
+        if tipo:
+            filename += f'_{tipo}'
+        if idioma:
+            filename += f'_{idioma}'
+        filename += '.csv'
+        
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao exportar inventário: {str(e)}")
+
