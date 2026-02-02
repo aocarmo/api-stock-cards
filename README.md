@@ -22,6 +22,11 @@ Acompanha progresso do processamento com:
 - Progresso percentual
 - Linhas com erro
 
+### 5. Inventário
+- Sincronização automática do inventário completo
+- Consulta com filtros (coleção, tipo, idioma, preço, quantidade)
+- Exportação em CSV
+
 ## 🏗️ Arquitetura
 
 ```
@@ -32,6 +37,10 @@ API Gateway → Lambda Proxy (FastAPI)
 S3 Upload → Lambda Producer → SQS → 50x Lambda Consumer
                 ↓                           ↓
             DynamoDB ← ← ← ← ← ← ← ← ← ← ← ←
+
+Inventory Sync → 5x Lambda Scraper (paralelo por faixa de preço)
+                        ↓
+                    DynamoDB + S3
 ```
 
 ## 📋 Formato CSV
@@ -107,7 +116,9 @@ Swagger: http://localhost:8000/docs
 
 ## 📡 Endpoints
 
-### POST /api/v1/recadastrar
+### Operações de Cartas
+
+#### POST /api/v1/recadastrar
 Recadastra cartas (exclui e cria novamente).
 
 ```bash
@@ -125,7 +136,7 @@ curl -X POST http://localhost:8000/api/v1/recadastrar \
   }'
 ```
 
-### POST /api/v1/atualizar
+#### POST /api/v1/atualizar
 Atualiza preços e quantidades.
 
 ```bash
@@ -145,19 +156,104 @@ curl -X POST http://localhost:8000/api/v1/atualizar \
   }'
 ```
 
-### POST /api/v1/upload-csv
+#### POST /api/v1/upload-csv
 Upload de CSV para processamento em massa.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/upload-csv \
-  -F "file=@exemplo.csv"
+  -F "file=@exemplo.csv" \
+  -F "operation=atualizar"
 ```
 
-### GET /api/v1/status/{file_id}
+#### GET /api/v1/status/{file_id}
 Consulta status do processamento.
 
 ```bash
 curl http://localhost:8000/api/v1/status/file_20260118_200500
+```
+
+### Inventário
+
+#### POST /api/v1/inventory/sync
+Inicia sincronização do inventário (~1 minuto).
+
+```bash
+curl -X POST https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/sync
+```
+
+#### GET /api/v1/inventory/status/{job_id}
+Consulta progresso da sincronização.
+
+```bash
+curl https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/status/inv_20260202_010624
+```
+
+#### GET /api/v1/inventory/summary
+Resumo agregado (rápido).
+
+```bash
+curl https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/summary
+```
+
+**Retorna:**
+```json
+{
+  "total_cards": 1200,
+  "by_collection": {"PRE": 316, "MEG": 130},
+  "by_type": {"normal": 671, "foil": 106},
+  "by_language": {"portugues": 911, "ingles": 289}
+}
+```
+
+#### GET /api/v1/inventory
+Consulta cartas com filtros.
+
+**Filtros disponíveis:**
+- `colecao` - Sigla da coleção
+- `numero` - Número da carta
+- `tipo` - normal, foil, reverse-foil
+- `idioma` - portugues, ingles, espanhol
+- `preco_min` / `preco_max` - Faixa de preço
+- `quantidade_min` - Quantidade mínima
+- `limit` - Limite de resultados (padrão: 1000)
+
+```bash
+# Cartas foil da coleção PRE
+curl "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory?colecao=PRE&tipo=foil"
+
+# Cartas em inglês acima de R$10
+curl "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory?idioma=ingles&preco_min=10"
+```
+
+#### GET /api/v1/inventory/export
+Exporta inventário em CSV (download direto).
+
+```bash
+# Exportar tudo
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export"
+
+# Exportar apenas PRE
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?colecao=PRE"
+
+# Exportar cartas foil em inglês acima de R$10
+curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?tipo=foil&idioma=ingles&preco_min=10"
+```
+
+## 🐍 Scripts de Exportação
+
+### Exportação Customizada
+```bash
+# Exportar com filtros específicos
+python3 export_inventory.py --colecao PRE --tipo foil --output pre_foil.csv
+```
+
+### Exportação Completa Organizada
+```bash
+# Exporta todas as combinações de coleção/tipo/idioma em arquivos separados
+python3 export_all_collections.py
+
+# Resultado: 27 arquivos CSV na pasta exports/
+# Exemplo: pre_normal_portugues.csv, meg_foil_ingles.csv, etc
 ```
 
 ## ⚙️ Configurações
@@ -166,6 +262,7 @@ curl http://localhost:8000/api/v1/status/file_20260118_200500
 - **Concorrência**: 50 lambdas simultâneas
 - **Timeout Lambda**: 15 minutos
 - **Delay entre operações**: 2 segundos (evitar bloqueio)
+- **Inventário**: Sincronização paralela em 5 faixas de preço
 
 ## 📊 Monitoramento
 
@@ -178,6 +275,9 @@ aws logs tail /aws/lambda/myp-producer --follow
 
 # Logs do Consumer
 aws logs tail /aws/lambda/myp-consumer --follow
+
+# Logs do Inventory Scraper
+aws logs tail /aws/lambda/myp-inventory-scraper --follow
 
 # Status dos arquivos
 aws dynamodb scan --table-name myp-cards-files
@@ -204,7 +304,3 @@ Projeto pessoal - Uso privado
 ## 👤 Autor
 
 Alex Carmo - alex.carmo91@gmail.com
-
- update-myp % curl -X POST https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/upload-csv \
-  -F "file=@/Users/alex/Documents/projetos/pessoais/update-myp/exemplo.csv" \
-  -F "operation=recadastrar"
