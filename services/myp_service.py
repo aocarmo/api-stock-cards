@@ -361,11 +361,13 @@ class MypService:
     def create_card(self, card_data):
         """Cadastra carta usando endpoint direto"""
         if not card_data.get('idproduto'):
+            print(f"❌ create_card: idproduto não fornecido")
             return False
         
         # Pegar CSRF token
         csrf = self.get_csrf()
         if not csrf:
+            print(f"❌ create_card: Falha ao obter CSRF token")
             return False
         
         # Dados do formulário
@@ -386,11 +388,18 @@ class MypService:
             'Estoque[obsestoque]': ''
         }
         
+        print(f"DEBUG - create_card: idproduto={card_data['idproduto']}, tipo={card_data.get('tipo')}, idfoil={data['Estoque[idfoil]']}, idioma={card_data.get('idioma_nome')}, ididioma={data['Estoque[ididioma]']}")
+        
         # POST direto
         resp = self.scraper.post(f'https://mypcards.com/estoque/create?idproduto={card_data["idproduto"]}', data=data)
         
+        print(f"DEBUG - create_card: status={resp.status_code}, url={resp.url}")
+        
         # Se redirecionou para produto, deu certo
-        return resp.status_code == 200 and 'produto' in resp.url
+        success = resp.status_code == 200 and 'produto' in resp.url
+        if not success:
+            print(f"❌ create_card: Falha - status={resp.status_code}, url={resp.url}")
+        return success
     
     def update_card(self, id_estoque, preco=None, quantidade=None):
         """Atualiza carta"""
