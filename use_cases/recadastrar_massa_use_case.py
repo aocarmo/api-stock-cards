@@ -39,6 +39,19 @@ class RecadastrarMassaUseCase:
                     if self.service.delete_card(card_data['id_estoque']):
                         print(f"✅ Carta excluída: {numero} ({colecao}) ({tipo}) ({idioma})")
                         
+                        # Buscar idproduto para poder recriar
+                        idproduto = self.service.search_product_id(numero, colecao)
+                        if not idproduto:
+                            print(f"❌ Produto não encontrado no site: {numero} ({colecao})")
+                            resultados.append({
+                                'numero': numero,
+                                'colecao': colecao,
+                                'tipo': tipo,
+                                'idioma': idioma,
+                                'status': 'produto_nao_encontrado'
+                            })
+                            continue
+                        
                         # MANTER quantidade atual (NÃO somar)
                         qtd_atual = card_data.get('quantidade')
                         
@@ -46,6 +59,7 @@ class RecadastrarMassaUseCase:
                         preco_novo = preco if preco else card_data.get('preco')
                         
                         # Preservar dados e aplicar novo preço
+                        card_data['idproduto'] = idproduto  # ADICIONAR idproduto
                         card_data['preco'] = preco_novo
                         card_data['quantidade'] = qtd_atual  # MANTER quantidade atual
                         card_data['tipo'] = tipo  # Preservar tipo do CSV
