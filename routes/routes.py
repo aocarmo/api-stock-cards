@@ -620,13 +620,18 @@ async def health_check():
     summary="Sincronizar inventário",
     description="Inicia scraping assíncrono do inventário completo em paralelo"
 )
-async def sync_inventory():
-    """Inicia sincronização assíncrona do inventário"""
+async def sync_inventory(trigger_precificacao: bool = False):
+    """
+    Inicia sincronização assíncrona do inventário
+    
+    Args:
+        trigger_precificacao: Se True, dispara precificação após sync completar
+    """
     from use_cases.sync_inventory_use_case import SyncInventoryUseCase
     
     try:
         use_case = SyncInventoryUseCase()
-        result = use_case.execute()
+        result = use_case.execute(trigger_precificacao=trigger_precificacao)
         
         if not result['success']:
             raise HTTPException(status_code=429, detail=result['error'])
@@ -822,4 +827,142 @@ async def export_inventory_csv(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao exportar inventário: {str(e)}")
+
+
+# ============================================
+# PRECIFICAÇÃO DINÂMICA
+# ============================================
+
+@router.get("/api/v1/precificacao/status/{job_id}")
+async def get_precificacao_status(job_id: str):
+    """
+    Consulta status de um job de precificação
+    """
+    import boto3
+    import os
+    
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        table_name = os.environ.get('PRECIFICACAO_JOBS_TABLE', 'myp-cards-precificacao-jobs-dev')
+        table = dynamodb.Table(table_name)
+        
+        response = table.get_item(Key={'job_id': job_id})
+        
+        if 'Item' not in response:
+            raise HTTPException(status_code=404, detail="Job não encontrado")
+        
+        job = response['Item']
+        
+        # Calcular progresso
+        total = int(job.get('total_cards', 0))
+        processed = int(job.get('processed_cards', 0))
+        success = int(job.get('success_count', 0))
+        errors = int(job.get('error_count', 0))
+        
+        progress = (processed / total * 100) if total > 0 else 0
+        
+        return {
+            'job_id': job_id,
+            'status': job.get('status'),
+            'started_at': job.get('started_at'),
+            'completed_at': job.get('completed_at'),
+            'total_cards': total,
+            'processed_cards': processed,
+            'success_count': success,
+            'error_count': errors,
+            'progress_percent': round(progress, 2),
+            'errors': job.get('errors', [])
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar status: {str(e)}")
+
+
+@router.post("/api/v1/precificacao/trigger")
+async def trigger_precificacao():
+    """
+    Trigger manual da precificação (para testes)
+    """
+    import boto3
+    import os
+    
+    try:
+        lambda_client = boto3.client('lambda')
+        function_name = os.environ.get('PRECIFICACAO_ORCHESTRATOR_FUNCTION', 
+                                      'myp-cards-precificacao-orchestrator-dev')
+        
+        response = lambda_client.invoke(
+            FunctionName=function_name,
+            InvocationType='Event'
+        )
+        
+        return {
+            'message': 'Precificação iniciada',
+            'status_code': response['StatusCode']
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao iniciar precificação: {str(e)}")
+
+
+@router.post("/api/v1/precificacao/restore/{job_id}")
+async def restore_quantities(job_id: str):
+    """
+    Restaura quantidades originais de um job de precificação
+    """
+    import boto3
+    import os
+    from use_cases.recadastrar_massa_use_case import RecadastrarMassaUseCase
+    
+    try:
+        dynamodb = boto3.resource('dynamodb')
+        table_name = os.environ.get('PRECIFICACAO_JOBS_TABLE', 'myp-cards-precificacao-jobs-dev')
+        table = dynamodb.Table(table_name)
+        
+        # Buscar job
+        response = table.get_item(Key={'job_id': job_id})
+        
+        if 'Item' not in response:
+            raise HTTPException(status_code=404, detail="Job não encontrado")
+        
+        job = response['Item']
+        original_quantities = job.get('original_quantities', {})
+        
+        if not original_quantities:
+            raise HTTPException(status_code=400, detail="Job não possui quantidades originais salvas")
+        
+        # Preparar cartas para restaurar
+        cartas_restaurar = []
+        for carta_key, quantidade_original in original_quantities.items():
+            # Parsear chave: numero#colecao#tipo#idioma
+            parts = carta_key.split('#')
+            if len(parts) == 4:
+                cartas_restaurar.append({
+                    'numero': parts[0],
+                    'colecao': parts[1],
+                    'tipo': parts[2],
+                    'idioma': parts[3],
+                    'quantidade': quantidade_original,
+                    'preco': 0  # Será mantido o preço atual
+                })
+        
+        # Recadastrar com quantidades originais
+        use_case = RecadastrarMassaUseCase()
+        resultados = use_case.execute(cartas_restaurar)
+        
+        success_count = sum(1 for r in resultados if r.get('status') in ['ok', 'criada'])
+        
+        return {
+            'message': 'Quantidades restauradas',
+            'total_cards': len(cartas_restaurar),
+            'success_count': success_count,
+            'results': resultados
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao restaurar quantidades: {str(e)}")
 

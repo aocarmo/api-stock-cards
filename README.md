@@ -27,6 +27,14 @@ Acompanha progresso do processamento com:
 - Consulta com filtros (coleção, tipo, idioma, preço, quantidade)
 - Exportação em CSV
 
+### 6. Precificação Dinâmica Automatizada ⭐ NOVO
+- Execução diária às 18h
+- Sincroniza inventário antes de precificar
+- Aplica regras de precificação por faixa de preço
+- Detecta vendas e adições de estoque
+- Protege estoque com disponibilização controlada
+- Rastreamento completo de estado
+
 ## 🏗️ Arquitetura
 
 ```

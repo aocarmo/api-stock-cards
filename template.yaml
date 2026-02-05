@@ -21,6 +21,8 @@ Globals:
         DYNAMODB_TABLE: !Ref FilesTable
         INVENTORY_JOBS_TABLE: !Ref InventoryJobsTable
         INVENTORY_DATA_TABLE: !Ref InventoryDataTable
+        PRECIFICACAO_JOBS_TABLE: !Ref PrecificacaoJobsTable
+        PRECIFICACAO_TRIGGER_QUEUE: !Ref PrecificacaoTriggerQueue
         INVENTORY_BUCKET: !Ref InventoryBucket
         MYP_USERNAME: "alex.carmo91@gmail.com"
         MYP_PASSWORD: "Xela0704@!"
@@ -54,22 +56,6 @@ Resources:
                   - logs:*
                   - lambda:InvokeFunction
                 Resource: '*'
-
-  # Lambda para scraping de inventário
-  InventoryScraperFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub ${ProjectName}-inventory-scraper-${Environment}
-      CodeUri: .
-      Handler: lambda_scrape_inventory.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Events:
-        ScheduleEvent:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 day)
-            Description: "Scraping diário do inventário"
-            Enabled: true
 
   # API Gateway
   ApiGateway:
@@ -128,6 +114,48 @@ Resources:
       MessageRetentionPeriod: 1209600
       ReceiveMessageWaitTimeSeconds: 20
 
+  # SQS - Precificacao Producer Queue
+  PrecificacaoProducerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${ProjectName}-precificacao-producer-${Environment}
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PrecificacaoProducerDLQ.Arn
+        maxReceiveCount: 3
+
+  PrecificacaoProducerDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${ProjectName}-precificacao-producer-dlq-${Environment}
+      MessageRetentionPeriod: 1209600
+
+  # SQS - Precificacao Consumer Queue
+  PrecificacaoConsumerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${ProjectName}-precificacao-consumer-${Environment}
+      VisibilityTimeout: 900
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PrecificacaoConsumerDLQ.Arn
+        maxReceiveCount: 3
+
+  PrecificacaoConsumerDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${ProjectName}-precificacao-consumer-dlq-${Environment}
+      MessageRetentionPeriod: 1209600
+
+  # SQS - Trigger de Precificação (após sync completar)
+  PrecificacaoTriggerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${ProjectName}-precificacao-trigger-${Environment}
+      VisibilityTimeout: 600
+      MessageRetentionPeriod: 86400
+
   # DLQ
   DeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -185,6 +213,22 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+
+  # DynamoDB - Precificacao Jobs
+  PrecificacaoJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${ProjectName}-precificacao-jobs-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   # S3 Bucket para Inventory
   InventoryBucket:
@@ -294,6 +338,88 @@ Resources:
       Layers:
         - !Ref DependenciesLayer
 
+  # Lambda: Precificacao Orchestrator
+  PrecificacaoOrchestratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-precificacao-orchestrator-${Environment}
+      CodeUri: ./
+      Handler: lambdas.precificacao_orchestrator.lambda_handler
+      Timeout: 600
+      MemorySize: 512
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          PRECIFICACAO_JOBS_TABLE: !Ref PrecificacaoJobsTable
+          INVENTORY_DATA_TABLE: !Ref InventoryDataTable
+          PRECIFICACAO_PRODUCER_QUEUE: !Ref PrecificacaoProducerQueue
+          API_FUNCTION: !Ref ApiFunction
+          PRECO_MAXIMO: "50.00"
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 21 * * ? *)
+            Description: Inicia sync de inventário às 18h BRT (21h UTC)
+            Enabled: true
+        TriggerQueue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PrecificacaoTriggerQueue.Arn
+            Enabled: true
+            BatchSize: 1
+
+  # Lambda: Precificacao Producer
+  PrecificacaoProducerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-precificacao-producer-${Environment}
+      CodeUri: ./
+      Handler: lambdas.precificacao_producer.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          PRECIFICACAO_JOBS_TABLE: !Ref PrecificacaoJobsTable
+          PRECIFICACAO_CONSUMER_QUEUE: !Ref PrecificacaoConsumerQueue
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PrecificacaoProducerQueue.Arn
+            Enabled: true
+            BatchSize: 1
+
+  # Lambda: Precificacao Consumer
+  PrecificacaoConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-precificacao-consumer-${Environment}
+      CodeUri: ./
+      Handler: lambdas.precificacao_consumer.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Layers:
+        - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          PRECIFICACAO_JOBS_TABLE: !Ref PrecificacaoJobsTable
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PrecificacaoConsumerQueue.Arn
+            Enabled: true
+            BatchSize: 1
+            ScalingConfig:
+              MaximumConcurrency: 10
+
 Outputs:
   ApiUrl:
     Description: URL da API
@@ -322,3 +448,15 @@ Outputs:
   InventoryDataTableName:
     Description: Nome da tabela DynamoDB de dados de inventário
     Value: !Ref InventoryDataTable
+  
+  PrecificacaoJobsTableName:
+    Description: Nome da tabela DynamoDB de jobs de precificação
+    Value: !Ref PrecificacaoJobsTable
+  
+  PrecificacaoProducerQueueUrl:
+    Description: URL da fila SQS Producer de precificação
+    Value: !Ref PrecificacaoProducerQueue
+  
+  PrecificacaoConsumerQueueUrl:
+    Description: URL da fila SQS Consumer de precificação
+    Value: !Ref PrecificacaoConsumerQueue

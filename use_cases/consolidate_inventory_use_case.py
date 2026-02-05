@@ -93,6 +93,26 @@ class ConsolidateInventoryUseCase:
             }
         )
         
+        # Se foi solicitado trigger de precificação, enviar mensagem
+        job_data = self.jobs_table.get_item(Key={'job_id': job_id}).get('Item', {})
+        if job_data.get('trigger_precificacao'):
+            print(f"Enviando trigger de precificação para job {job_id}")
+            
+            import boto3
+            sqs = boto3.client('sqs')
+            queue_url = os.getenv('PRECIFICACAO_TRIGGER_QUEUE')
+            
+            if queue_url:
+                sqs.send_message(
+                    QueueUrl=queue_url,
+                    MessageBody=json.dumps({
+                        'sync_job_id': job_id,
+                        'total_cards': len(all_cards),
+                        'completed_at': datetime.now().isoformat()
+                    })
+                )
+                print("✅ Trigger de precificação enviado")
+        
         return {
             'success': True,
             'total_cards': len(all_cards),

@@ -18,8 +18,13 @@ class SyncInventoryUseCase:
         self.data_table = self.dynamodb.Table(os.getenv('INVENTORY_DATA_TABLE'))
         self.bucket = os.getenv('INVENTORY_BUCKET')
     
-    def execute(self):
-        """Inicia sincronização assíncrona do inventário"""
+    def execute(self, trigger_precificacao=False):
+        """
+        Inicia sincronização assíncrona do inventário
+        
+        Args:
+            trigger_precificacao: Se True, envia mensagem para fila após completar
+        """
         # Verificar se já existe job em processamento
         response = self.jobs_table.scan(
             FilterExpression='#status = :status',
@@ -53,6 +58,7 @@ class SyncInventoryUseCase:
             'total_ranges': len(price_ranges),
             'ranges_completed': 0,
             'started_at': datetime.now().isoformat(),
+            'trigger_precificacao': trigger_precificacao,
             'ttl': ttl
         })
         
