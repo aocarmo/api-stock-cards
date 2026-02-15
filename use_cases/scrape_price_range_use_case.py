@@ -31,8 +31,8 @@ class ScrapePriceRangeUseCase:
         
         self.service.init_scraper(cookies)
         
-        # Scraping da faixa
-        cards = self.service.scrape_inventory(price_ranges=[(min_price, max_price)])
+        # Scraping completo (sem filtros de preço)
+        cards = self.service.scrape_inventory()
         
         # Salvar parcial no S3
         s3_key = f"{job_id}/ranges/range_{min_price}-{max_price}.json"
