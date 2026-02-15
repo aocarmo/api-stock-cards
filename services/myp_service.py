@@ -437,151 +437,138 @@ class MypService:
         """Scraping completo do inventário usando endpoint load-more"""
         username = os.getenv('MYP_USERNAME_URL', 'aocarmo')
         
-        # Ranges padrão se não especificado
-        if not price_ranges:
-            price_ranges = [
-                (0, 9.99),
-                (10, 49.99), 
-                (50, 99.99),
-                (100, 499.99),
-                (500, 9999)
-            ]
-        
         all_cards = []
+        page = 1
         
-        for min_price, max_price in price_ranges:
-            print(f"Scraping faixa R${min_price} - R${max_price}...")
-            page = 1
+        print(f"Scraping inventário completo...")
+        
+        while True:
+            params = {
+                'nick': username,
+                'page': page
+            }
             
-            while True:
-                params = {
-                    'nick': username,
-                    'page': page,
-                    'PastaSearch[precoMinimo]': f'{min_price:.2f}',
-                    'PastaSearch[precoMaximo]': f'{max_price}'
-                }
-                
-                resp = self.scraper.get('https://mypcards.com/usuario/load-more', params=params)
-                
-                if resp.status_code != 200:
-                    break
-                
+            resp = self.scraper.get('https://mypcards.com/usuario/load-more', params=params)
+            
+            if resp.status_code != 200:
+                break
+            
+            try:
+                data = resp.json()
+            except:
+                break
+            
+            # Parsear HTML retornado
+            soup = BeautifulSoup(data['html'], 'html.parser')
+            cards = soup.find_all('li', class_='stream-item')
+            
+            if not cards:
+                break
+            
+            for card in cards:
                 try:
-                    data = resp.json()
-                except:
-                    break
-                
-                # Parsear HTML retornado
-                soup = BeautifulSoup(data['html'], 'html.parser')
-                cards = soup.find_all('li', class_='stream-item')
-                
-                if not cards:
-                    break
-                
-                for card in cards:
-                    try:
-                        # Nome da carta (h3)
-                        nome_elem = card.find('h3')
-                        nome = nome_elem.text.strip() if nome_elem else ''
-                        
-                        # Extrair número do nome
-                        numero = ''
-                        if nome:
-                            parts = nome.split()
-                            for part in parts:
-                                if '/' in part and any(c.isdigit() for c in part):
-                                    numero = part.replace('(', '').replace(')', '')
-                                    break
-                        
-                        # Coleção (span.card-edicao)
-                        colecao_elem = card.find('span', class_='card-edicao')
-                        colecao = colecao_elem.text.strip() if colecao_elem else ''
-                        
-                        # Tipo (buscar texto exato do span dentro de card-qualidade)
-                        tipo = 'normal'
-                        qualidade_div = card.find('div', class_='card-qualidade')
-                        if qualidade_div:
-                            # Procurar o segundo span (que contém o tipo)
-                            spans = qualidade_div.find_all('span')
-                            for span in spans:
-                                text = span.get_text(strip=True)
-                                # Ignorar spans vazios e de qualidade (NM, SP, etc)
-                                if text and text not in ['NM', 'SP', 'MP', 'HP', 'D']:
-                                    tipo_lower = text.lower()
-                                    # Mapear tipos conhecidos
-                                    if 'masterball' in tipo_lower or 'master ball' in tipo_lower:
-                                        tipo = 'masterball-foil'
-                                    elif 'pokeball' in tipo_lower or 'poke ball' in tipo_lower:
-                                        tipo = 'pokeball-foil'
-                                    elif 'reverse' in tipo_lower:
-                                        tipo = 'reverse-foil'
-                                    elif 'full-art' in tipo_lower or 'full art' in tipo_lower:
-                                        tipo = 'full-art'
-                                    elif 'altered art' in tipo_lower:
-                                        tipo = 'altered-art'
-                                    elif 'promo' in tipo_lower:
-                                        tipo = 'promo'
-                                    elif 'staff' in tipo_lower:
-                                        tipo = 'staff'
-                                    elif 'unlimited foil' in tipo_lower:
-                                        tipo = 'unlimited-foil'
-                                    elif 'unlimited' in tipo_lower:
-                                        tipo = 'unlimited'
-                                    elif 'oversize' in tipo_lower:
-                                        tipo = 'oversize'
-                                    elif 'foil' in tipo_lower:
-                                        tipo = 'foil'
-                                    break
-                        
-                        # Idioma (flag)
-                        idioma = 'portugues'
-                        flag_elem = card.find('span', class_='flag-icon')
-                        if flag_elem and flag_elem.get('title'):
-                            idioma_map = {
-                                'português': 'portugues',
-                                'inglês': 'ingles',
-                                'espanhol': 'espanhol',
-                                'francês': 'frances',
-                                'alemão': 'alemao',
-                                'italiano': 'italiano',
-                                'japonês': 'japones',
-                                'coreano': 'coreano'
-                            }
-                            idioma = idioma_map.get(flag_elem['title'].lower(), 'portugues')
-                        
-                        # Preço
-                        preco_elem = card.find('span', class_='moeda')
-                        preco = '0.00'
-                        if preco_elem:
-                            preco = preco_elem.text.replace('R$', '').replace(' ', '').replace(',', '.').strip()
-                        
-                        # Quantidade
-                        qtd_elem = card.find('span', class_='quantidade-num')
-                        quantidade = '1'
-                        if qtd_elem:
-                            quantidade = qtd_elem.text.strip()
-                        
-                        if numero and colecao:
-                            all_cards.append({
-                                'numero': numero,
-                                'colecao': colecao,
-                                'tipo': tipo,
-                                'idioma': idioma,
-                                'preco': preco,
-                                'quantidade': quantidade
-                            })
+                    # Nome da carta (h3)
+                    nome_elem = card.find('h3')
+                    nome = nome_elem.text.strip() if nome_elem else ''
                     
-                    except Exception as e:
-                        print(f"Erro ao processar carta: {e}")
-                        continue
+                    # Extrair número do nome
+                    numero = ''
+                    if nome:
+                        parts = nome.split()
+                        for part in parts:
+                            if '/' in part and any(c.isdigit() for c in part):
+                                numero = part.replace('(', '').replace(')', '')
+                                break
+                    
+                    # Coleção (span.card-edicao)
+                    colecao_elem = card.find('span', class_='card-edicao')
+                    colecao = colecao_elem.text.strip() if colecao_elem else ''
+                    
+                    # Tipo (buscar texto exato do span dentro de card-qualidade)
+                    tipo = 'normal'
+                    qualidade_div = card.find('div', class_='card-qualidade')
+                    if qualidade_div:
+                        # Procurar o segundo span (que contém o tipo)
+                        spans = qualidade_div.find_all('span')
+                        for span in spans:
+                            text = span.get_text(strip=True)
+                            # Ignorar spans vazios e de qualidade (NM, SP, etc)
+                            if text and text not in ['NM', 'SP', 'MP', 'HP', 'D']:
+                                tipo_lower = text.lower()
+                                # Mapear tipos conhecidos
+                                if 'masterball' in tipo_lower or 'master ball' in tipo_lower:
+                                    tipo = 'masterball-foil'
+                                elif 'pokeball' in tipo_lower or 'poke ball' in tipo_lower:
+                                    tipo = 'pokeball-foil'
+                                elif 'reverse' in tipo_lower:
+                                    tipo = 'reverse-foil'
+                                elif 'full-art' in tipo_lower or 'full art' in tipo_lower:
+                                    tipo = 'full-art'
+                                elif 'altered art' in tipo_lower:
+                                    tipo = 'altered-art'
+                                elif 'promo' in tipo_lower:
+                                    tipo = 'promo'
+                                elif 'staff' in tipo_lower:
+                                    tipo = 'staff'
+                                elif 'unlimited foil' in tipo_lower:
+                                    tipo = 'unlimited-foil'
+                                elif 'unlimited' in tipo_lower:
+                                    tipo = 'unlimited'
+                                elif 'oversize' in tipo_lower:
+                                    tipo = 'oversize'
+                                elif 'foil' in tipo_lower:
+                                    tipo = 'foil'
+                                break
+                    
+                    # Idioma (flag)
+                    idioma = 'portugues'
+                    flag_elem = card.find('span', class_='flag-icon')
+                    if flag_elem and flag_elem.get('title'):
+                        idioma_map = {
+                            'português': 'portugues',
+                            'inglês': 'ingles',
+                            'espanhol': 'espanhol',
+                            'francês': 'frances',
+                            'alemão': 'alemao',
+                            'italiano': 'italiano',
+                            'japonês': 'japones',
+                            'coreano': 'coreano'
+                        }
+                        idioma = idioma_map.get(flag_elem['title'].lower(), 'portugues')
+                    
+                    # Preço
+                    preco_elem = card.find('span', class_='moeda')
+                    preco = '0.00'
+                    if preco_elem:
+                        preco = preco_elem.text.replace('R$', '').replace(' ', '').replace(',', '.').strip()
+                    
+                    # Quantidade
+                    qtd_elem = card.find('span', class_='quantidade-num')
+                    quantidade = '1'
+                    if qtd_elem:
+                        quantidade = qtd_elem.text.strip()
+                    
+                    if numero and colecao:
+                        all_cards.append({
+                            'numero': numero,
+                            'colecao': colecao,
+                            'tipo': tipo,
+                            'idioma': idioma,
+                            'preco': preco,
+                            'quantidade': quantidade
+                        })
                 
-                # Verificar se tem mais páginas (usar metadado do JSON)
-                if not data.get('hasMorePages', False):
-                    break
-                
-                page += 1
-                import time
-                time.sleep(0.5)
+                except Exception as e:
+                    print(f"Erro ao processar carta: {e}")
+                    continue
+            
+            # Verificar se tem mais páginas (usar metadado do JSON)
+            if not data.get('hasMorePages', False):
+                break
+            
+            page += 1
+            import time
+            time.sleep(0.5)
         
         return all_cards
     

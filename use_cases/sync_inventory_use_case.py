@@ -36,44 +36,35 @@ class SyncInventoryUseCase:
         # Criar novo job
         job_id = f"inv_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        price_ranges = [
-            (0, 10),
-            (10, 50),
-            (50, 100),
-            (100, 500),
-            (500, 9999)
-        ]
-        
         # Criar registro no DynamoDB
         ttl = int((datetime.now() + timedelta(days=7)).timestamp())
         
         self.jobs_table.put_item(Item={
             'job_id': job_id,
             'status': 'PROCESSING',
-            'total_ranges': len(price_ranges),
+            'total_ranges': 1,
             'ranges_completed': 0,
             'started_at': datetime.now().isoformat(),
             'ttl': ttl
         })
         
-        # Disparar lambdas em paralelo
-        for index, price_range in enumerate(price_ranges):
-            payload = {
-                'job_id': job_id,
-                'price_range': price_range,
-                'range_index': index,
-                'total_ranges': len(price_ranges)
-            }
-            
-            self.lambda_client.invoke(
-                FunctionName=f"myp-cards-inventory-scraper-{os.getenv('Environment', 'dev')}",
-                InvocationType='Event',
-                Payload=json.dumps(payload)
-            )
+        # Invocar lambda scraper (apenas 1, sem filtros de preço)
+        payload = {
+            'job_id': job_id,
+            'price_range': (0, 99999),
+            'range_index': 0,
+            'total_ranges': 1
+        }
+        
+        self.lambda_client.invoke(
+            FunctionName=f"myp-cards-inventory-scraper-{os.getenv('Environment', 'dev')}",
+            InvocationType='Event',
+            Payload=json.dumps(payload)
+        )
         
         return {
             'success': True,
             'job_id': job_id,
             'status': 'PROCESSING',
-            'message': f'Sincronização iniciada. {len(price_ranges)} lambdas processando em paralelo.'
+            'message': 'Sincronização iniciada. Scraping completo sem filtros de preço.'
         }
