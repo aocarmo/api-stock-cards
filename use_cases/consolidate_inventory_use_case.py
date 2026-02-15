@@ -17,18 +17,17 @@ class ConsolidateInventoryUseCase:
     
     def execute(self, job_id, total_ranges):
         """Consolida todos os ranges em um inventário completo"""
-        # Baixar todos os ranges do S3
+        # Baixar o arquivo único do S3
         all_cards = []
-        price_ranges = [(0, 10), (10, 50), (50, 100), (100, 500), (500, 9999)]
+        s3_key = f"{job_id}/ranges/range_0-99999.json"
         
-        for min_price, max_price in price_ranges:
-            s3_key = f"{job_id}/ranges/range_{min_price}-{max_price}.json"
-            try:
-                obj = self.s3.get_object(Bucket=self.bucket, Key=s3_key)
-                cards = json.loads(obj['Body'].read())
-                all_cards.extend(cards)
-            except Exception as e:
-                print(f"⚠️ Erro ao baixar {s3_key}: {str(e)}")
+        try:
+            obj = self.s3.get_object(Bucket=self.bucket, Key=s3_key)
+            all_cards = json.loads(obj['Body'].read())
+            print(f"✅ {len(all_cards)} cartas carregadas do S3")
+        except Exception as e:
+            print(f"❌ Erro ao baixar {s3_key}: {str(e)}")
+            return {'success': False, 'error': str(e)}
         
         # Calcular agregados
         by_collection = {}
