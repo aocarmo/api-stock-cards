@@ -1,3 +1,5 @@
+import time
+import os
 from services.myp_service import MypService
 
 class ExcluirMassaUseCase:
@@ -18,6 +20,8 @@ class ExcluirMassaUseCase:
         
         resultados = []
         
+        delay = float(os.getenv('MYP_DELETE_DELAY_SECONDS', '0'))
+
         for carta in cartas:
             numero = carta.get('numero')
             colecao = carta.get('colecao')
@@ -72,5 +76,8 @@ class ExcluirMassaUseCase:
                     'status': 'erro',
                     'mensagem': str(e)
                 })
+
+            if delay > 0:
+                time.sleep(delay)
         
         return resultados

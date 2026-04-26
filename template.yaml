@@ -22,9 +22,9 @@ Globals:
         INVENTORY_JOBS_TABLE: !Ref InventoryJobsTable
         INVENTORY_DATA_TABLE: !Ref InventoryDataTable
         INVENTORY_BUCKET: !Ref InventoryBucket
-        MYP_USERNAME: "alex.carmo91@gmail.com"
-        MYP_PASSWORD: "Xela0704@!"
-        MYP_USERNAME_URL: "aocarmo"
+        MYP_USERNAME: "17mariavitoria.argolo@gmail.com"
+        MYP_PASSWORD: "Mar0809."
+        MYP_USERNAME_URL: "Mavipoke"
         CHUNK_SIZE: "50"
 
 Resources:
@@ -271,6 +271,9 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Layers:
         - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          MYP_DELETE_DELAY_SECONDS: "0.25"
       Events:
         SQSEvent:
           Type: SQS

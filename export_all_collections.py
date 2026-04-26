@@ -24,8 +24,8 @@ def export_all_collections(output_dir):
     summary = response.json()
     
     colecoes = list(summary['by_collection'].keys())
-    tipos = ['normal', 'foil', 'reverse-foil']
-    idiomas = ['portugues', 'ingles', 'espanhol']
+    tipos = list(summary['by_type'].keys())
+    idiomas = list(summary['by_language'].keys())
     
     print(f"📦 Coleções: {', '.join(colecoes)}")
     print(f"🎨 Tipos: {', '.join(tipos)}")
@@ -42,7 +42,7 @@ def export_all_collections(output_dir):
                     'colecao': colecao,
                     'tipo': tipo,
                     'idioma': idioma,
-                    'limit': 10000
+                    'limit': 999999
                 }
                 
                 try:
