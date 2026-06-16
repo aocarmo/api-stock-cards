@@ -169,6 +169,10 @@ function initInventario() {
 
   api("GET", "/api/inventory/summary").then((s) => {
     document.getElementById("summary").innerHTML = `<strong>${s.total_cards ?? "?"}</strong> cartas no total · atualizado ${s.updated_at || "?"}`;
+    // popular o select de coleção com as coleções reais (ordenadas por nome)
+    const sel = document.getElementById("f-colecao");
+    const cols = Object.keys(s.by_collection || {}).sort();
+    cols.forEach((c) => sel.append(el("option", { value: c }, `${c} (${s.by_collection[c]})`)));
   }).catch(() => { document.getElementById("summary").innerHTML = "<small class='muted'>Sem inventário sincronizado ainda.</small>"; });
 
   function filterParams() {

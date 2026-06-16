@@ -12,12 +12,19 @@
 </div>
 
 <article>
-  <form id="filtros" class="grid">
-    <input name="colecao" placeholder="Coleção (DRI)">
-    <input name="numero" placeholder="Número">
-    <select name="tipo"><option value="">tipo (todos)</option>{% for t in tipos %}<option>{{ t }}</option>{% endfor %}</select>
-    <select name="idioma"><option value="">idioma (todos)</option>{% for i in idiomas %}<option>{{ i }}</option>{% endfor %}</select>
-    <input name="limit" placeholder="limite (1000)">
+  <form id="filtros">
+    <div class="grid">
+      <select name="colecao" id="f-colecao"><option value="">coleção (todas)</option></select>
+      <input name="numero" placeholder="Número">
+      <select name="tipo"><option value="">tipo (todos)</option>{% for t in tipos %}<option>{{ t }}</option>{% endfor %}</select>
+      <select name="idioma"><option value="">idioma (todos)</option>{% for i in idiomas %}<option>{{ i }}</option>{% endfor %}</select>
+    </div>
+    <div class="grid">
+      <input name="preco_min" type="number" step="0.01" min="0" placeholder="preço mín">
+      <input name="preco_max" type="number" step="0.01" min="0" placeholder="preço máx">
+      <input name="quantidade_min" type="number" min="0" placeholder="qtd mín">
+      <input name="limit" placeholder="limite (1000)">
+    </div>
   </form>
   <div class="grid">
     <button id="buscar">Buscar</button>
