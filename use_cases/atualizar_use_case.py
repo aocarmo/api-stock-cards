@@ -21,23 +21,27 @@ class AtualizarUseCase:
         
         for carta in cartas:
             numero = carta['numero']
-            tipo = carta.get('tipo', '')
+            colecao = carta.get('colecao', '')
+            tipo = carta.get('tipo', 'normal')
+            idioma = carta.get('idioma', 'portugues')
             novo_preco = carta.get('preco')
             nova_quantidade = carta.get('quantidade')
-            
+            base = {'numero': numero, 'colecao': colecao, 'tipo': tipo, 'idioma': idioma}
+
             try:
-                card_data = self.service.search_card(numero, tipo)
-                
+                # Assinatura correta: search_card(numero, colecao, tipo, idioma)
+                card_data = self.service.search_card(numero, colecao, tipo, idioma)
+
                 if not card_data:
-                    resultados.append({'numero': numero, 'tipo': tipo, 'status': 'nao_encontrada'})
+                    resultados.append({**base, 'status': 'nao_encontrada'})
                     continue
-                
+
                 if self.service.update_card(card_data['id_estoque'], novo_preco, nova_quantidade):
-                    resultados.append({'numero': numero, 'tipo': tipo, 'status': 'ok'})
+                    resultados.append({**base, 'status': 'ok'})
                 else:
-                    resultados.append({'numero': numero, 'tipo': tipo, 'status': 'erro_atualizar'})
-                    
+                    resultados.append({**base, 'status': 'erro_atualizar'})
+
             except Exception as e:
-                resultados.append({'numero': numero, 'tipo': tipo, 'status': 'erro', 'erro': str(e)})
-        
+                resultados.append({**base, 'status': 'erro', 'erro': str(e)})
+
         return resultados

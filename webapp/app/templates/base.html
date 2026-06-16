@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-br" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Gestor de Estoque{% endblock %} · MypCards</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <nav class="container-fluid topnav">
+    <ul>
+      <li><strong>🃏 Estoque MypCards</strong></li>
+    </ul>
+    <ul>
+      <li><a href="/cadastrar" class="{{ 'active' if active=='cadastrar' }}">Cadastrar</a></li>
+      <li><a href="/alterar" class="{{ 'active' if active=='alterar' }}">Alterar</a></li>
+      <li><a href="/excluir" class="{{ 'active' if active=='excluir' }}">Excluir</a></li>
+      <li><a href="/inventario" class="{{ 'active' if active=='inventario' }}">Inventário</a></li>
+      <li><a href="/progresso" class="{{ 'active' if active=='progresso' }}">Progresso</a></li>
+      <li><small id="health" class="health">●</small></li>
+    </ul>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="/static/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Inventário{% endblock %}
+{% block content %}
+<h2>Inventário</h2>
+<div class="grid">
+  <article id="summary"><small class="muted">Resumo…</small></article>
+  <article>
+    <button id="sync-btn" class="secondary">Sincronizar inventário (scrape)</button>
+    <progress id="sync-prog" value="0" max="100" style="display:none"></progress>
+    <small id="sync-msg" class="muted"></small>
+  </article>
+</div>
+
+<article>
+  <form id="filtros" class="grid">
+    <input name="colecao" placeholder="Coleção (DRI)">
+    <input name="numero" placeholder="Número">
+    <select name="tipo"><option value="">tipo (todos)</option>{% for t in tipos %}<option>{{ t }}</option>{% endfor %}</select>
+    <select name="idioma"><option value="">idioma (todos)</option>{% for i in idiomas %}<option>{{ i }}</option>{% endfor %}</select>
+    <input name="limit" placeholder="limite (1000)">
+  </form>
+  <div class="grid">
+    <button id="buscar">Buscar</button>
+    <a id="export" href="#" role="button" class="secondary outline">Exportar CSV</a>
+  </div>
+</article>
+
+<article>
+  <p id="inv-msg" class="muted">Use os filtros e clique em Buscar.</p>
+  <div id="inv-pager" class="pager"></div>
+  <div id="inv-wrap"></div>
+</article>
+{% endblock %}

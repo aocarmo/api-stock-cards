@@ -1,0 +1,12 @@
+**/.venv
+**/__pycache__
+**/*.pyc
+.git
+.github
+.aws-sam
+htmlcov
+.pytest_cache
+.coverage
+webapp/.env
+webapp/data
+**/node_modules

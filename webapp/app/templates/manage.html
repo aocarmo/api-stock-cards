@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ cfg.title }}{% endblock %}
+{% block content %}
+<h2>{{ cfg.title }} cartas</h2>
+<p class="muted">
+  {% if cfg.operation == 'delete' %}
+    Remove cartas do estoque. 1 carta = imediato; várias = job em lote (anti-429).
+  {% else %}
+    Cadastra ou atualiza (preço é substituído, quantidade é somada). 1 carta = imediato; várias = job em lote.
+  {% endif %}
+</p>
+
+<article>
+  <h3>Adicionar carta</h3>
+  <form id="card-form">
+    <div class="grid">
+      <label>Número <input name="numero" placeholder="021/182" required></label>
+      <label>Coleção <input name="colecao" placeholder="DRI" required></label>
+    </div>
+    <div class="grid">
+      <label>Tipo
+        <select name="tipo">{% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+      </label>
+      <label>Idioma
+        <select name="idioma">{% for i in idiomas %}<option value="{{ i }}" {{ 'selected' if i=='portugues' }}>{{ i }}</option>{% endfor %}</select>
+      </label>
+      {% if cfg.needs_price %}
+      <label>Preço <input name="preco" placeholder="0.30"></label>
+      <label>Qtd <input name="quantidade" placeholder="1"></label>
+      {% endif %}
+    </div>
+    <button type="submit" class="secondary">Adicionar à lista</button>
+  </form>
+</article>
+
+<article>
+  <h3>Importar em massa</h3>
+  <p class="muted">Cole do Excel/planilha (aceita <code>,</code> <code>;</code> ou TAB). Com ou sem cabeçalho. Ordem: numero, colecao, tipo, idioma{% if cfg.needs_price %}, preco, quantidade{% endif %}.</p>
+  <textarea id="bulk-text" rows="5" placeholder="021/182,DRI,normal,portugues,0.30,29"></textarea>
+  <button id="bulk-validate" class="secondary">Validar e adicionar</button>
+  <div id="bulk-errors"></div>
+</article>
+
+<article>
+  <h3>Lista pendente (<span id="count">0</span>)</h3>
+  <div id="list-wrap"><table><thead><tr>
+    <th>Número</th><th>Coleção</th><th>Tipo</th><th>Idioma</th>
+    {% if cfg.needs_price %}<th>Preço</th><th>Qtd</th>{% endif %}<th></th>
+  </tr></thead><tbody id="list-body"></tbody></table></div>
+  <div id="list-pager" class="pager"></div>
+  <div class="grid">
+    <button id="send-btn">Enviar</button>
+    <button id="clear-btn" class="secondary outline">Limpar lista</button>
+  </div>
+  <p id="send-msg" class="muted"></p>
+</article>
+
+<script id="page-cfg" type="application/json">
+  {"operation": "{{ cfg.operation }}", "needsPrice": {{ 'true' if cfg.needs_price else 'false' }},
+   "action": "{{ cfg.action }}", "single": "{{ cfg.single }}"}
+</script>
+{% endblock %}

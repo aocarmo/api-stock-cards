@@ -434,37 +434,69 @@ class MypService:
         return resp.status_code == 200 or 'estoque/update' in resp.url
     
     def scrape_inventory(self, price_ranges=None):
-        """Scraping completo do inventário usando endpoint load-more"""
-        username = os.getenv('MYP_USERNAME_URL', 'aocarmo')
-        
+        """Scraping completo do inventário usando endpoint load-more.
+
+        Paginação robusta: deduplica por (numero,colecao,tipo,idioma) e percorre
+        até esgotar de fato (páginas vazias), sem confiar apenas em hasMorePages
+        — que reportava fim cedo demais e fazia o scraper perder cartas.
+        """
+        import time
+        # Preferir o nick auto-extraído no login; cair no env var como fallback.
+        username = getattr(self, 'username_url', None) or os.getenv('MYP_USERNAME_URL', 'aocarmo')
+
         all_cards = []
+        seen = set()
         page = 1
-        
-        print(f"Scraping inventário completo...")
-        
-        while True:
+        MAX_PAGES = 1000
+        empty_streak = 0
+        no_new_streak = 0
+        total_seen = 0
+        total_skipped = 0
+        total_dupes = 0
+
+        print(f"Scraping inventário completo... (nick={username})")
+
+        while page <= MAX_PAGES:
             params = {
                 'nick': username,
                 'page': page
             }
-            
-            resp = self.scraper.get('https://mypcards.com/usuario/load-more', params=params)
-            
-            if resp.status_code != 200:
+
+            try:
+                resp = self.scraper.get('https://mypcards.com/usuario/load-more', params=params)
+            except Exception as e:
+                print(f"Página {page}: erro de requisição ({e}), parando")
                 break
-            
+
+            if resp.status_code != 200:
+                print(f"Página {page}: status {resp.status_code}, parando")
+                break
+
             try:
                 data = resp.json()
             except:
+                print(f"Página {page}: JSON inválido, parando")
                 break
-            
+
             # Parsear HTML retornado
-            soup = BeautifulSoup(data['html'], 'html.parser')
+            soup = BeautifulSoup(data.get('html', ''), 'html.parser')
             cards = soup.find_all('li', class_='stream-item')
-            
+            has_more = data.get('hasMorePages', False)
+
+            # Página sem itens: tolerar 1, parar na 2ª consecutiva
             if not cards:
-                break
-            
+                empty_streak += 1
+                print(f"Página {page}: 0 itens (empty_streak={empty_streak}, hasMorePages={has_more})")
+                if empty_streak >= 2:
+                    break
+                page += 1
+                time.sleep(0.4)
+                continue
+            empty_streak = 0
+
+            page_validos = 0
+            page_novos = 0
+            page_dupes = 0
             for card in cards:
                 try:
                     # Nome da carta (h3)
@@ -549,6 +581,15 @@ class MypService:
                         quantidade = qtd_elem.text.strip()
                     
                     if numero and colecao:
+                        total_seen += 1
+                        page_validos += 1
+                        key = (numero, colecao, tipo, idioma)
+                        if key in seen:
+                            total_dupes += 1
+                            page_dupes += 1
+                            continue
+                        seen.add(key)
+                        page_novos += 1
                         all_cards.append({
                             'numero': numero,
                             'colecao': colecao,
@@ -557,19 +598,36 @@ class MypService:
                             'preco': preco,
                             'quantidade': quantidade
                         })
-                
+                    else:
+                        total_skipped += 1
+
                 except Exception as e:
                     print(f"Erro ao processar carta: {e}")
                     continue
-            
-            # Verificar se tem mais páginas (usar metadado do JSON)
-            if not data.get('hasMorePages', False):
+
+            print(f"Página {page}: itens={len(cards)} validos={page_validos} "
+                  f"novos={page_novos} dupes={page_dupes} unico_total={len(all_cards)} "
+                  f"hasMorePages={has_more}")
+
+            if page_novos == 0:
+                no_new_streak += 1
+            else:
+                no_new_streak = 0
+
+            # Não confiar só em hasMorePages (reportava fim cedo demais):
+            # parar apenas se o site sinalizou fim E a página não trouxe nada novo,
+            # ou após várias páginas seguidas sem cartas novas (feed repetindo).
+            if not has_more and page_novos == 0:
                 break
-            
+            if no_new_streak >= 6:
+                print(f"{no_new_streak} páginas seguidas sem cartas novas, parando")
+                break
+
             page += 1
-            import time
-            time.sleep(0.5)
-        
+            time.sleep(0.4)
+
+        print(f"RESUMO scrape: paginas_lidas={page} itens_vistos={total_seen} "
+              f"unicos={len(all_cards)} dupes={total_dupes} sem_numero={total_skipped}")
         return all_cards
     
     def scrape_market_card(self, numero, colecao, tipo, idioma):
