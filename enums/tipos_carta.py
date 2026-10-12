@@ -16,6 +16,14 @@ class TipoCarta(Enum):
     POKEBALL_FOIL = ("49", "pokeball-foil", "Pokeball Foil")
     MASTERBALL_FOIL = ("50", "masterball-foil", "Masterball Foil")
     OVERSIZE = ("52", "oversize", "Oversize")
+    # Tipos que o site adicionou em 2026 (ids do <select id="estoque-idfoil">)
+    ENERGY_SYMBOL = ("63", "energy-symbol", "Energy Symbol")
+    DUSK_BALL = ("64", "dusk-ball", "Dusk Ball")
+    FRIEND_BALL = ("65", "friend-ball", "Friend Ball")
+    LOVE_BALL = ("66", "love-ball", "Love Ball")
+    POKE_BALL = ("67", "poke-ball", "Poke Ball")
+    QUICK_BALL = ("68", "quick-ball", "Quick Ball")
+    TEAM_ROCKET = ("69", "team-rocket", "Team Rocket")
     
     def __init__(self, id_valor, nome_api, nome_dom):
         self.id_valor = id_valor

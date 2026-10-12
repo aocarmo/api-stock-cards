@@ -63,6 +63,9 @@ docker compose down          # parar e remover
 - **Inventário**: busca o estoque (filtros), clicar numa carta abre Alterar pré-preenchido,
   botão Sincronizar (dispara o scrape) e Exportar CSV.
 - **Progresso**: jobs em lote com barra, contagem ok/erro, lista de falhas, retry e cancelar.
+- **Sessão**: cola o cookie `_identity` do navegador logado no MypCards (o site exige captcha no
+  login desde set/2026, então a API não loga sozinha). Mostra se a sessão gravada ainda vale; o
+  link no menu ganha um ⚠️ quando ela expira. Sem sessão válida, nada cadastra/altera/exclui.
   Atualiza a cada 3s.
 
 ## Configuração (`.env`)

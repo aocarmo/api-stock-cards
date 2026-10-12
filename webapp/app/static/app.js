@@ -270,7 +270,54 @@ function initProgresso() {
   return true;
 }
 
+// ===================== SESSÃO (cookie do MypCards) =====================
+function sessaoTexto(s) {
+  if (!s.configurada) return "⚠️ Nenhuma sessão gravada. Cole o cookie abaixo.";
+  const quando = s.atualizada_em ? ` (gravada em ${new Date(s.atualizada_em).toLocaleString("pt-BR")})` : "";
+  if (s.logada) return `✅ Sessão válida — nick ${s.nick}, usuário ${s.user_id}${quando}.`;
+  return `❌ Sessão gravada mas expirada${quando}. Cole um cookie novo abaixo.`;
+}
+
+async function checkSessaoNav() {
+  const a = document.getElementById("nav-sessao");
+  if (!a || document.getElementById("sessao-form")) return;
+  try {
+    const s = await api("GET", "/api/sessao");
+    if (!s.logada) { a.textContent = "Sessão ⚠️"; a.title = sessaoTexto(s); }
+  } catch {}
+}
+
+function initSessao() {
+  const form = document.getElementById("sessao-form");
+  if (!form) return false;
+  const status = document.getElementById("sessao-status");
+  const msg = document.getElementById("sessao-msg");
+
+  async function refresh() {
+    try { status.textContent = sessaoTexto(await api("GET", "/api/sessao")); }
+    catch (e) { status.textContent = "Não consegui consultar a API: " + (e.data?.detail || e.status || e); }
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const fd = Object.fromEntries(new FormData(form).entries());
+    msg.textContent = "Validando no MypCards…";
+    try {
+      const r = await api("POST", "/api/sessao", fd);
+      msg.textContent = `Salvo: nick ${r.nick}, usuário ${r.user_id}.`;
+      form.reset();
+      refresh();
+    } catch (e) {
+      msg.textContent = "Erro: " + (e.data?.detail || e.status || e);
+    }
+  });
+
+  refresh();
+  return true;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   checkHealth();
-  initManage() || initInventario() || initProgresso();
+  checkSessaoNav();
+  initManage() || initInventario() || initProgresso() || initSessao();
 });

@@ -19,22 +19,120 @@ class MypService:
         self._csrf_token = None
         self._csrf_timestamp = 0
         self.username_url = None
+        self.user_id = None
+        self.sessao_atualizada_em = None
+        self._sessao_cache = None
     
     # Auth methods
+    #
+    # Desde set/2026 o login do MypCards exige reCAPTCHA, então a Lambda não consegue mais
+    # logar sozinha. A sessão vem de fora: o dono loga no navegador, copia o cookie
+    # `_identity` e manda para `POST /api/v1/sessao`, que grava no DynamoDB (tabela de
+    # arquivos, item `file_id = sessao_myp`). Aqui só lemos esse item.
+    SESSAO_ITEM_ID = 'sessao_myp'
+
+    def _tabela_sessao(self):
+        import boto3
+        nome = os.getenv('DYNAMODB_TABLE')
+        if not nome:
+            return None
+        return boto3.resource('dynamodb').Table(nome)
+
     def get_session(self):
-        """Recupera cookies e username salvos"""
-        with open(self.session_file, 'r') as f:
-            data = json.load(f)
-            # Compatibilidade com formato antigo (só cookies)
-            if isinstance(data, dict) and 'cookies' in data:
-                self.username_url = data.get('username')
-                return data['cookies']
-            return data
+        """Recupera cookies, nick e id do usuário. Ordem: DynamoDB → env MYP_SESSION_COOKIES."""
+        data = self._sessao_cache
+        if data is None:
+            tabela = self._tabela_sessao()
+            if tabela is not None:
+                item = tabela.get_item(Key={'file_id': self.SESSAO_ITEM_ID}).get('Item')
+                if item:
+                    data = {
+                        'cookies': dict(item['cookies']),
+                        'username': item.get('nick'),
+                        'user_id': item.get('user_id'),
+                        'atualizada_em': item.get('atualizada_em'),
+                    }
+            if data is None and os.getenv('MYP_SESSION_COOKIES'):
+                # Uso local, sem DynamoDB: export MYP_SESSION_COOKIES='{"_identity": "..."}'
+                data = {
+                    'cookies': json.loads(os.environ['MYP_SESSION_COOKIES']),
+                    'username': os.getenv('MYP_USERNAME_URL'),
+                    'user_id': None,
+                }
+            if data is None and os.path.exists(self.session_file):
+                # Formato antigo: arquivo em /tmp gravado pelo login()
+                with open(self.session_file, 'r') as f:
+                    data = json.load(f)
+            if data is None:
+                raise FileNotFoundError(
+                    "Sessão do MypCards não configurada: logue no site pelo navegador, copie o "
+                    "cookie _identity e envie para POST /api/v1/sessao"
+                )
+            self._sessao_cache = data
+
+        # Compatibilidade com formato antigo (só cookies)
+        if isinstance(data, dict) and 'cookies' in data:
+            self.username_url = data.get('username') or self.username_url
+            if data.get('user_id'):
+                self.user_id = str(data['user_id'])
+            self.sessao_atualizada_em = data.get('atualizada_em')
+            return data['cookies']
+        return data
+
+    def salvar_sessao(self, cookies, nick, user_id):
+        """Grava a sessão (vinda do navegador do dono) no DynamoDB."""
+        from datetime import datetime
+        tabela = self._tabela_sessao()
+        if tabela is None:
+            raise Exception("DYNAMODB_TABLE não configurada — não há onde guardar a sessão")
+        agora = datetime.now().isoformat()
+        tabela.put_item(Item={
+            'file_id': self.SESSAO_ITEM_ID,
+            'cookies': dict(cookies),
+            'nick': nick,
+            'user_id': str(user_id) if user_id else None,
+            'atualizada_em': agora,
+        })
+        self._sessao_cache = None
+        self.username_url = nick
+        self.user_id = str(user_id) if user_id else None
+        self.sessao_atualizada_em = agora
+
+    def validar_sessao(self, cookies):
+        """Testa os cookies contra o site. Retorna {logada, nick, user_id}."""
+        import re
+        self.init_scraper(cookies)
+        resp = self.scraper.get('https://mypcards.com/')
+        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        # Logado = tem link "Sair" (/logout) no cabeçalho
+        logada = soup.find('a', href=lambda h: h and h.rstrip('/').endswith('/logout')) is not None
+
+        # Nick = href do link "Minha pasta" (<a href="/Cardoris">Minha pasta</a>)
+        nick = None
+        for link in soup.find_all('a', href=True):
+            if 'minha pasta' in link.get_text(strip=True).lower():
+                nick = link['href'].strip('/').split('/')[0]
+                break
+
+        # ID do usuário aparece em links da pasta (…?idusuario=109299)
+        user_id = None
+        if nick:
+            pasta = self.scraper.get(f'https://mypcards.com/{nick}')
+            match = re.search(r'idusuario=(\d+)', pasta.text)
+            if match:
+                user_id = match.group(1)
+
+        return {'logada': logada, 'nick': nick, 'user_id': user_id}
     
     def get_user_id(self):
-        """Extrai ID do usuário do cookie _identity"""
+        """ID do usuário: do cookie _identity, senão do que foi salvo na sessão, senão da página da pasta"""
+        if self.user_id:
+            return self.user_id
         try:
             cookies = self.get_session()
+            if self.user_id:
+                return self.user_id
             identity_cookie = cookies.get('_identity', '')
             
             # Cookie _identity é um formato serializado do PHP
@@ -48,16 +146,27 @@ class MypService:
             # Extrair o JSON array usando regex
             match = re.search(r'\[(\d+),', decoded)
             if match:
-                user_id = match.group(1)
-                print(f"DEBUG - User ID extraído: {user_id}")
-                return user_id
+                self.user_id = match.group(1)
+                print(f"DEBUG - User ID extraído: {self.user_id}")
+                return self.user_id
             
             print("DEBUG - Não foi possível extrair user_id do cookie")
-            return None
             
         except Exception as e:
             print(f"DEBUG - Erro ao extrair user_id: {e}")
-            return None
+
+        # Fallback: a página da pasta traz links com idusuario=NNN
+        try:
+            if self.scraper and self.username_url:
+                resp = self.scraper.get(f'https://mypcards.com/{self.username_url}')
+                match = re.search(r'idusuario=(\d+)', resp.text)
+                if match:
+                    self.user_id = match.group(1)
+                    print(f"DEBUG - User ID extraído da pasta: {self.user_id}")
+                    return self.user_id
+        except Exception as e:
+            print(f"DEBUG - Erro ao extrair user_id da pasta: {e}")
+        return None
     
     def save_session(self, cookies):
         """Salva cookies e username"""
@@ -83,6 +192,10 @@ class MypService:
         
         # CSRF
         resp = scraper.get('https://mypcards.com/site/login')
+        if 'g-recaptcha' in resp.text:
+            print("❌ O login do MypCards exige reCAPTCHA (desde set/2026) — a Lambda não consegue logar. "
+                  "Logue no navegador, copie o cookie _identity e envie para POST /api/v1/sessao")
+            return False
         soup = BeautifulSoup(resp.text, 'html.parser')
         csrf = soup.find('meta', {'name': 'csrf-token'})['content']
         
@@ -249,8 +362,23 @@ class MypService:
                             tipo_normalizado = 'normal'
                         elif 'masterball' in tipo_text or 'master ball' in tipo_text:
                             tipo_normalizado = 'masterball-foil'
-                        elif 'pokeball' in tipo_text or 'poke ball' in tipo_text:
+                        elif 'dusk ball' in tipo_text:
+                            tipo_normalizado = 'dusk-ball'
+                        elif 'friend ball' in tipo_text:
+                            tipo_normalizado = 'friend-ball'
+                        elif 'love ball' in tipo_text:
+                            tipo_normalizado = 'love-ball'
+                        elif 'quick ball' in tipo_text:
+                            tipo_normalizado = 'quick-ball'
+                        elif 'energy symbol' in tipo_text:
+                            tipo_normalizado = 'energy-symbol'
+                        elif 'team rocket' in tipo_text:
+                            tipo_normalizado = 'team-rocket'
+                        elif 'pokeball' in tipo_text:
+                            # "Pokeball Foil" (sem espaço) ≠ "Poke Ball" (com espaço)
                             tipo_normalizado = 'pokeball-foil'
+                        elif 'poke ball' in tipo_text:
+                            tipo_normalizado = 'poke-ball'
                         elif 'reverse' in tipo_text:
                             tipo_normalizado = 'reverse-foil'
                         elif 'full-art' in tipo_text or 'full art' in tipo_text:
@@ -423,7 +551,7 @@ class MypService:
             'Estoque[idproduto]': form.find('input', {'id': 'estoque-idproduto'})['value'],
             'Estoque[criarnovo]': 'false',
             'Estoque[ididioma]': form.find('select', {'id': 'estoque-ididioma'}).find('option', selected=True)['value'],
-            'Estoque[qualidadeestoque]': form.find('select', {'id': 'estoque-qualidadeestoque'}).find('option', selected=True)['value'],
+            'Estoque[qualidadeestoque]': self._ler_qualidade(form),
             'Estoque[idfoil]': form.find('select', {'id': 'estoque-idfoil'}).find('option', selected=True)['value'],
             'Estoque[statusestoque]': 'V',
             'Estoque[quantidadeestoque]': quantidade or form.find('input', {'id': 'estoque-quantidadeestoque'})['value'],
@@ -431,7 +559,16 @@ class MypService:
         }
         
         resp = self.scraper.post(url, data=data)
-        return resp.status_code == 200 or 'estoque/update' in resp.url
+        if resp.status_code != 200:
+            print(f"❌ update_card: status={resp.status_code}, url={resp.url}")
+            return False
+        # Se o site devolveu o próprio form com erro de validação, não salvou
+        erros = [e.get_text(strip=True) for e in BeautifulSoup(resp.text, 'html.parser').select('#estoque-form .help-block-error')]
+        erros = [e for e in erros if e]
+        if erros:
+            print(f"❌ update_card: validação falhou: {erros}")
+            return False
+        return True
     
     def scrape_inventory(self, price_ranges=None):
         """Scraping completo do inventário usando endpoint load-more.
@@ -442,7 +579,9 @@ class MypService:
         """
         import time
         # Preferir o nick auto-extraído no login; cair no env var como fallback.
-        username = getattr(self, 'username_url', None) or os.getenv('MYP_USERNAME_URL', 'aocarmo')
+        username = getattr(self, 'username_url', None) or os.getenv('MYP_USERNAME_URL')
+        if not username:
+            raise Exception("Nick do MypCards desconhecido — configure a sessão via POST /api/v1/sessao")
 
         all_cards = []
         seen = set()
@@ -530,8 +669,23 @@ class MypService:
                                 # Mapear tipos conhecidos
                                 if 'masterball' in tipo_lower or 'master ball' in tipo_lower:
                                     tipo = 'masterball-foil'
-                                elif 'pokeball' in tipo_lower or 'poke ball' in tipo_lower:
+                                elif 'dusk ball' in tipo_lower:
+                                    tipo = 'dusk-ball'
+                                elif 'friend ball' in tipo_lower:
+                                    tipo = 'friend-ball'
+                                elif 'love ball' in tipo_lower:
+                                    tipo = 'love-ball'
+                                elif 'quick ball' in tipo_lower:
+                                    tipo = 'quick-ball'
+                                elif 'energy symbol' in tipo_lower:
+                                    tipo = 'energy-symbol'
+                                elif 'team rocket' in tipo_lower:
+                                    tipo = 'team-rocket'
+                                elif 'pokeball' in tipo_lower:
+                                    # "Pokeball Foil" (sem espaço) ≠ "Poke Ball" (com espaço)
                                     tipo = 'pokeball-foil'
+                                elif 'poke ball' in tipo_lower:
+                                    tipo = 'poke-ball'
                                 elif 'reverse' in tipo_lower:
                                     tipo = 'reverse-foil'
                                 elif 'full-art' in tipo_lower or 'full art' in tipo_lower:
@@ -691,6 +845,18 @@ class MypService:
         return all_cards
 
     # Private methods
+    def _ler_qualidade(self, form):
+        """Qualidade no form de estoque: hoje é radio (Estoque[qualidadeestoque]); antes era select."""
+        radio = form.find('input', {'name': 'Estoque[qualidadeestoque]', 'checked': True})
+        if radio and radio.get('value'):
+            return radio['value']
+        select = form.find('select', {'id': 'estoque-qualidadeestoque'})
+        if select:
+            opcao = select.find('option', selected=True)
+            if opcao:
+                return opcao['value']
+        return 'NM'
+
     def _get_card_details(self, id_estoque):
         """Pega dados completos da carta"""
         resp = self.scraper.get(f'https://mypcards.com/estoque/update/{id_estoque}')
@@ -700,7 +866,7 @@ class MypService:
         if form:
             return {
                 'idproduto': form.find('input', {'id': 'estoque-idproduto'})['value'],
-                'qualidade': form.find('select', {'id': 'estoque-qualidadeestoque'}).find('option', selected=True)['value'],
+                'qualidade': self._ler_qualidade(form),
                 'preco': form.find('input', {'id': 'estoque-precoestoque'})['value'],
                 'quantidade': form.find('input', {'id': 'estoque-quantidadeestoque'})['value']
             }

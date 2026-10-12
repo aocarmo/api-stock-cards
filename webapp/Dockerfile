@@ -5,7 +5,7 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     HOST=0.0.0.0 \
-    PORT=8001
+    PORT=8010
 
 WORKDIR /app/webapp
 
@@ -16,5 +16,5 @@ RUN pip install -r requirements.txt
 COPY enums/ /app/enums/
 COPY webapp/ /app/webapp/
 
-EXPOSE 8001
+EXPOSE 8010
 CMD ["python", "run.py"]

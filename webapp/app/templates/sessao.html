@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Sessão{% endblock %}
+{% block content %}
+<h2>Sessão do MypCards</h2>
+<p class="muted">
+  O MypCards passou a exigir captcha no login, então a API não consegue logar sozinha. Ela usa o
+  login que <strong>você</strong> já fez no navegador: cole aqui o cookie e pronto. Dura semanas;
+  quando expirar, esta tela avisa e é só colar de novo.
+</p>
+
+<article>
+  <h3>Situação atual</h3>
+  <p id="sessao-status">Consultando…</p>
+</article>
+
+<article>
+  <h3>Colar cookie</h3>
+  <ol class="muted">
+    <li>Abra <a href="https://mypcards.com" target="_blank" rel="noopener">mypcards.com</a> logado (marque "Lembrar-me").</li>
+    <li>Aperte <kbd>F12</kbd> → aba <strong>Application</strong> → <strong>Cookies</strong> → <code>https://mypcards.com</code>.</li>
+    <li>Copie o <strong>Value</strong> da linha <code>_identity</code> e cole abaixo.</li>
+  </ol>
+  <form id="sessao-form">
+    <label>Cookie <code>_identity</code> (obrigatório)
+      <textarea name="identity" rows="3" placeholder="cole o valor inteiro aqui" required></textarea>
+    </label>
+    <div class="grid">
+      <label>Cookie <code>PHPSESSID</code> (opcional)
+        <input name="phpsessid" placeholder="só se quiser">
+      </label>
+      <label>Nick (opcional, a API descobre sozinha)
+        <input name="nick" placeholder="Cardoris">
+      </label>
+    </div>
+    <button type="submit">Salvar sessão</button>
+  </form>
+  <p id="sessao-msg" class="muted"></p>
+</article>
+{% endblock %}

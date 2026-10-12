@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
-from dtos.card_dtos import RecadastrarRequestDTO, AtualizarRequestDTO, ResponseDTO, CsvUploadResponseDTO, FileStatusDTO
+from dtos.card_dtos import RecadastrarRequestDTO, AtualizarRequestDTO, ResponseDTO, CsvUploadResponseDTO, FileStatusDTO, SessaoRequestDTO
 from use_cases.recadastrar_use_case import RecadastrarUseCase
 from use_cases.atualizar_use_case import AtualizarUseCase
 from use_cases.excluir_massa_use_case import ExcluirMassaUseCase
@@ -611,6 +611,82 @@ async def get_file_status(file_id: str) -> FileStatusDTO:
 )
 async def health_check():
     return {"status": "ok", "message": "MYP Cards API está funcionando"}
+
+# ==================== SESSÃO DO MYPCARDS ====================
+#
+# O login do MypCards exige reCAPTCHA desde set/2026, então a Lambda não loga sozinha.
+# O dono loga no navegador, copia o cookie `_identity` (DevTools → Application → Cookies)
+# e manda para cá. Fica no DynamoDB (tabela de arquivos, item `sessao_myp`) e todas as
+# Lambdas usam a partir daí. Ver docs/API_USAGE.md §0.
+
+@router.post(
+    "/sessao",
+    status_code=status.HTTP_200_OK,
+    summary="Configurar sessão do MypCards",
+    description="""
+    Recebe os cookies de um navegador logado no MypCards, valida contra o site e grava para
+    as Lambdas usarem. Obrigatório antes de qualquer cadastro/atualização/exclusão/scrape.
+
+    Body: `{ "cookies": { "_identity": "..." }, "nick": "Cardoris" }` — `nick` é opcional
+    (lido do site se omitido).
+    """,
+    responses={
+        200: {"description": "Sessão válida e gravada"},
+        400: {"description": "Cookies não autenticam no MypCards"},
+    }
+)
+async def configurar_sessao(request: SessaoRequestDTO):
+    from services.myp_service import MypService
+    try:
+        service = MypService()
+        info = service.validar_sessao(request.cookies)
+        if not info['logada']:
+            raise HTTPException(
+                status_code=400,
+                detail="Cookies não autenticam no MypCards (sessão expirada ou cookie _identity errado)"
+            )
+        nick = request.nick or info['nick']
+        if not nick:
+            raise HTTPException(status_code=400, detail="Não achei o nick no site — informe `nick` no body")
+        service.salvar_sessao(request.cookies, nick, info['user_id'])
+        return {
+            'ok': True,
+            'nick': nick,
+            'user_id': info['user_id'],
+            'atualizada_em': service.sessao_atualizada_em,
+            'cookies': sorted(request.cookies.keys()),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao configurar sessão: {str(e)}")
+
+
+@router.get(
+    "/sessao",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar sessão do MypCards",
+    description="Diz se há sessão gravada e se ela ainda autentica no site (faz uma requisição ao MypCards)."
+)
+async def consultar_sessao():
+    from services.myp_service import MypService
+    try:
+        service = MypService()
+        try:
+            cookies = service.get_session()
+        except FileNotFoundError as e:
+            return {'configurada': False, 'logada': False, 'mensagem': str(e)}
+        info = service.validar_sessao(cookies)
+        return {
+            'configurada': True,
+            'logada': info['logada'],
+            'nick': service.username_url,
+            'user_id': service.user_id or info['user_id'],
+            'atualizada_em': service.sessao_atualizada_em,
+            'cookies': sorted(cookies.keys()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar sessão: {str(e)}")
 
 # ==================== INVENTORY ENDPOINTS ====================
 

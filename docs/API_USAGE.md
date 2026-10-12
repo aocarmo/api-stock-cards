@@ -10,6 +10,42 @@ Guia prático para cadastrar/atualizar/excluir cartas em massa via API. Foco em
 
 ---
 
+## 0. Sessão do MypCards (obrigatório desde set/2026)
+
+Em 04/09/2026 o MypCards passou a exigir **reCAPTCHA no login**, então as Lambdas não
+conseguem mais logar com usuário/senha. A sessão agora vem do **seu navegador**:
+
+1. Logue em https://mypcards.com no Chrome (marque "Lembrar-me").
+2. DevTools → **Application → Cookies → https://mypcards.com** → copie o valor do cookie
+   **`_identity`** (é o cookie do "Lembrar-me"; dura semanas). `PHPSESSID` é opcional.
+3. Mande para a API:
+
+```bash
+curl -s -X POST "$BASE/sessao" -H 'Content-Type: application/json' \
+  -d '{"cookies": {"_identity": "COLE_AQUI"}}'
+# → {"ok": true, "nick": "Cardoris", "user_id": "109299", "atualizada_em": "..."}
+```
+
+A API valida os cookies contra o site, descobre o nick e o id do usuário, e grava no
+DynamoDB (tabela de arquivos, item `file_id = sessao_myp`). Todas as Lambdas (consumer,
+scraper, endpoints síncronos) leem dali. Não precisa redeploy para trocar a sessão.
+
+Conferir se ainda está válida (faz uma requisição ao site):
+
+```bash
+curl -s "$BASE/sessao"
+# → {"configurada": true, "logada": true, "nick": "Cardoris", ...}
+```
+
+Se `logada` vier `false`, a sessão expirou (ou você trocou a senha / deslogou de todos os
+dispositivos): repita os passos acima. Enquanto não houver sessão válida, **todas** as linhas
+de um CSV voltam como `erro` com a mensagem "Sessão do MypCards não configurada".
+
+> Para rodar a API fora da AWS, sem DynamoDB: `export MYP_SESSION_COOKIES='{"_identity":"..."}'`
+> e `MYP_USERNAME_URL=Cardoris`.
+
+---
+
 ## 1. Base
 
 ```
@@ -43,7 +79,9 @@ numero,colecao,tipo,idioma,preco,quantidade
 
 - **Exclusão** dispensa `preco,quantidade`: só `numero,colecao,tipo,idioma`.
 - `tipo`: `normal`, `foil`, `reverse-foil`, `pokeball-foil`, `masterball-foil`,
-  `full-art`, `altered-art`, `promo`, `staff` (mapeado em `services/myp_service.py`).
+  `full-art`, `altered-art`, `promo`, `staff`, e os que o site criou em 2026: `poke-ball`,
+  `dusk-ball`, `friend-ball`, `love-ball`, `quick-ball`, `energy-symbol`, `team-rocket`
+  (lista completa em `enums/tipos_carta.py`).
 - `numero` no formato `NNN/182` (zero à esquerda). Vale inclusive secret rares
   (ex.: `237/182`).
 
@@ -212,4 +250,4 @@ Para ajustes pontuais sem CSV — cada um com **delay de 2s** entre cartas:
 `POST /atualizar`, `POST /recadastrar`, `POST /recadastrar-massa`, `POST /excluir`.
 Body: `{ "cartas": [ { numero, colecao, tipo, idioma, preco, quantidade } ] }`.
 
-`GET /health` → sanity check da API.
+`GET /health` → sanity check da API. `GET /sessao` / `POST /sessao` → ver §0.

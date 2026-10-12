@@ -2,7 +2,7 @@
 DTOs para requests e responses
 """
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Dict, List, Optional
 from enums.tipos_carta import TipoCarta, IdiomaCarta
 
 class CartaRecadastrarDTO(BaseModel):
@@ -60,3 +60,7 @@ class ResultadoDTO(BaseModel):
 
 class ResponseDTO(BaseModel):
     resultados: List[ResultadoDTO]
+
+class SessaoRequestDTO(BaseModel):
+    cookies: Dict[str, str] = Field(..., description="Cookies do navegador logado no MypCards. Só `_identity` é obrigatório; `PHPSESSID` é opcional")
+    nick: Optional[str] = Field(None, description="Nick da pasta (ex: Cardoris). Se omitido, é lido do site")

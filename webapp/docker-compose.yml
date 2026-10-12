@@ -10,10 +10,10 @@ services:
     image: myp-webapp:latest
     container_name: myp-webapp
     ports:
-      - "8088:8001"
+      - "8088:8010"
     environment:
       HOST: 0.0.0.0
-      PORT: "8001"
+      PORT: "8010"
       MYP_BASE_URL: ${MYP_BASE_URL:-https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1}
       DYNAMO_TABLE: ${DYNAMO_TABLE:-myp-cards-files-dev}
       AWS_REGION: ${AWS_REGION:-us-east-1}

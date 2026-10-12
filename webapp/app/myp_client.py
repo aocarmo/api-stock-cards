@@ -58,6 +58,20 @@ class MypClient:
         r.raise_for_status()
         return r
 
+    # ---- sessão do MypCards (cookie do navegador) ----
+    async def sessao_get(self) -> dict:
+        r = await self.client.get(f"{self.base}/sessao")
+        r.raise_for_status()
+        return r.json()
+
+    async def sessao_set(self, cookies: dict, nick=None) -> dict:
+        body = {"cookies": cookies}
+        if nick:
+            body["nick"] = nick
+        r = await self.client.post(f"{self.base}/sessao", json=body)
+        r.raise_for_status()
+        return r.json()
+
     async def health(self) -> dict:
         r = await self.client.get(f"{self.base}/health")
         r.raise_for_status()

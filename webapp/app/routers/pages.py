@@ -43,4 +43,6 @@ async def page(request: Request, action: str):
         return _render(request, "inventario.html", active="inventario")
     if action == "progresso":
         return _render(request, "progresso.html", active="progresso")
+    if action == "sessao":
+        return _render(request, "sessao.html", active="sessao")
     return _render(request, "manage.html", active="cadastrar", cfg=PAGES["cadastrar"])

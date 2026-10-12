@@ -239,23 +239,6 @@ curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inven
 curl -O "https://018e6ro2ka.execute-api.us-east-1.amazonaws.com/dev/api/v1/inventory/export?tipo=foil&idioma=ingles&preco_min=10"
 ```
 
-## 🐍 Scripts de Exportação
-
-### Exportação Customizada
-```bash
-# Exportar com filtros específicos
-python3 export_inventory.py --colecao PRE --tipo foil --output pre_foil.csv
-```
-
-### Exportação Completa Organizada
-```bash
-# Exporta todas as combinações de coleção/tipo/idioma em arquivos separados
-python3 export_all_collections.py
-
-# Resultado: 27 arquivos CSV na pasta exports/
-# Exemplo: pre_normal_portugues.csv, meg_foil_ingles.csv, etc
-```
-
 ## ⚙️ Configurações
 
 - **Chunk Size**: 50 linhas por chunk
@@ -282,6 +265,14 @@ aws logs tail /aws/lambda/myp-inventory-scraper --follow
 # Status dos arquivos
 aws dynamodb scan --table-name myp-cards-files
 ```
+
+## 📚 Documentação
+
+| Onde                    | O quê                                                     |
+| ----------------------- | --------------------------------------------------------- |
+| `webapp/README.md`      | UI local de gestão de estoque — como rodar, telas, config  |
+| `docs/API_USAGE.md`     | Uso dos endpoints da API                                   |
+| `AGENTS.md`, `docs/harness/` | Contexto para agentes de IA (ver `docs/harness/README.md`) |
 
 ## 🔒 Segurança
 
